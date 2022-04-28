@@ -49,6 +49,7 @@ class Asset{
     - str asset_file
     + float transection_cost
     + list weight_range
+    + getData()
 }
 
 class Group{
@@ -57,7 +58,7 @@ class Group{
     + OrderedDict children
     + OrderedDict assets
     + list weight_range
-    + getAllLeafAsset
+    + getAllLeafAsset()
 }
 
 class Dataset{
