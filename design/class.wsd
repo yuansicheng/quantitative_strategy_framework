@@ -1,0 +1,109 @@
+@startuml
+scale 8192*8192
+
+Interface run
+class YourStrategy
+
+package framework{
+    class Strategy
+    class Asset 
+    class Group
+    class Benchmark
+    class Dataset 
+    class DateManager 
+    class Painter
+    class Evaluator
+    class YamlLoader
+}
+
+Interface run{
+    + str yaml_file
+    + importStrategy()
+    + runStrategy()
+    + daemon()
+} 
+
+class YourStrategy{
+    - dict strategy_args
+    - generate()
+    - backtestOneDay()
+}
+
+class Strategy{
+    + str strategy_name
+    - Dataset dataset
+    - DateManager date_manager
+    - dict constants
+    - dict global_args
+    + run()
+}
+
+class DateManager{
+    - str date_file
+    + getDateList()
+    + getUpdateDateList()
+}
+
+class Asset{
+    + str asset_name
+    - str asset_file
+    + float transection_cost
+    + list weight_range
+}
+
+class Group{
+    + str name
+    + float transection_cost
+    + OrderedDict children
+    + OrderedDict assets
+    + list weight_range
+    + getAllLeafAsset
+}
+
+class Dataset{
+    + OrderedDict asset_dict
+    + Group group
+    + addAsset()
+    + getData()
+}
+
+class Benchmark{
+    + OrderedDict asset_dict
+    + OrderedDict asset_weight
+    + getValue()
+}
+
+class YamlLoader{
+    + parseYaml()
+}
+
+class Evaluator{
+    - DataFrame strategy_value
+    - DataFrame benchmark_value
+    - DataFrame asset_close_df
+    + evaluate()
+}
+
+class Painter{
+    + drawWeights()
+    + drawValues()
+    + summarize()
+}
+
+run "1" -- "n" YourStrategy : call >
+run  "1" *-- "n" Benchmark
+run  "1" *-- "1" Evaluator
+run  "1" *-- "1" YamlLoader
+
+YourStrategy --|> Strategy
+Strategy  "1" *-- "1" Dataset
+run  "1" *-- "1" Painter
+run  "1" *-- "1" DateManager
+Strategy  "1" *-left- "1" DateManager
+
+Dataset  "1" *-- "n" Asset
+Dataset  "1" *-- "n" Group
+Benchmark  --|> Dataset
+
+
+@enduml
