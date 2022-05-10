@@ -110,7 +110,7 @@ class Dataset():
 
     def dict2CloseDf(self, data_dict):
         close_df = pd.DataFrame({k:v['CLOSE'] for k,v in data_dict.items()})
-        return close_df / close_df.iloc[0]
+        return close_df
 
 
 # # test

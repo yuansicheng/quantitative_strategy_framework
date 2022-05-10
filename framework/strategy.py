@@ -15,6 +15,9 @@ import numpy as np
 
 from collections import defaultdict
 
+from framework.position_manager import PositionManager
+from framework.order_manager import Order, OrderManager
+
 
 class Strategy(ABC):
     def __init__(self,
@@ -44,105 +47,143 @@ class Strategy(ABC):
 
         self.asset_list = list(self.dataset.asset_dict.keys())
 
-        # build in dataframes
-        self.weights = pd.DataFrame(columns=self.asset_list)
-        self.values = pd.DataFrame(columns=[self.strategy_name])
-        self.asset_states = pd.DataFrame(columns=self.asset_list, index=['position', 'cost', 'return'])
-        self.asset_states.iloc[:,:] = 0
-        self.marked_date = defaultdict(list)
+        self.cash = self.global_args['cash'] if 'cash' in self.global_args else 10000
+        self.historical_cash = pd.DataFrame(columns=['cash', 'cash_weight'])
 
+        # build-in dataframes
+        self.historical_weights = pd.DataFrame(columns=self.asset_list)
+        self.value = self.cash
+        self.historical_values = pd.DataFrame(columns=[self.strategy_name])
+        self.asset_positions = {asset: PositionManager(asset) for asset in self.asset_list}
+
+        self.order_manager = OrderManager()
+
+    def setResultPath(self):
+        self.result_path = os.path.join(self.global_args['result_path'], self.strategy_name)
+        if not os.path.isdir(self.result_path):
+            os.makedirs(self.result_path)
+
+        
     @abstractmethod
-    def generate(self, *args, **kwargs):
-        '''
-        generate strategy's parameters from 'generation_date_range',
-        if the strategy is independ on parameters, then skip this function
-        '''
+    def backtestOneDay(self, *args, **kwargs):
         pass
 
     @abstractmethod
-    def backtestOneDay(self, this_date, *args, **kwargs):
+    def update(self, *args, **kwargs):
+        pass   
+    
+    @abstractmethod
+    def rebalance(self, *args, **kwargs):
         pass
 
-    def updateDaily(self, d):
-        if not self.weights.shape[0]:
-            self.values.loc[d] = 1
+    @abstractmethod
+    def afterBacktest(self, *args, **kwargs):
+        pass             
+
+    def setBackTestAndRebalanceDate(self):
+        self.update_date = self.date_manager.getUpdateDateList(self.global_args['backtest_date_range'], frequency=self.global_args['frequency'], missing_date=self.missing_date)
+        if 'rebalance_frequency' in self.global_args:
+            self.rebalance_date = self.date_manager.getUpdateDateList(self.global_args['backtest_date_range'], frequency=self.global_args['rebalance_frequency'], missing_date=self.missing_date)
         else:
-            self.values.loc[d] = ((self.weights.iloc[-1] * self.asset_daily_yield_df.loc[d]).sum() + (1 - self.weights.iloc[-1].sum())) * self.values.iloc[-1]
+            self.rebalance_date = []
 
-            # update asset_states
-            self.asset_states.loc['position'] = self.asset_states.loc['position'] * self.asset_daily_yield_df.loc[d]
-            self.asset_states.loc['return'] = self.asset_states.loc['position'] / (self.asset_states.loc['cost'] + 1e-16)
-           
-            self.weights.loc[d] = self.asset_states.loc['position'] / self.values.loc[d].values[0]
-            
-
-    def updateAfterTransection(self):
-        # update asset states 
-        target_position = self.weights.iloc[-1] * self.values.iloc[-1].values
-        for asset in self.asset_list:
-            if target_position[asset] < self.asset_states.loc['position', asset]:
-                self.asset_states.loc['cost', asset] = self.asset_states.loc['cost', asset] * target_position[asset] / (self.asset_states.loc['position', asset] + 1e-16)
-            else:
-                self.asset_states.loc['cost', asset] = self.asset_states.loc['cost', asset] + target_position[asset] - self.asset_states.loc['position', asset]
-        self.asset_states.loc['position'] = target_position
-
-
-    def calculateTransectionCost(self, d):
-        target_position = self.weights.iloc[-1] * self.values.iloc[-1].values[0]
-        # transection costs
-
-        self.values.loc[d] = self.values.loc[d] - (self.transection_cost * (target_position - self.asset_states.loc['position']).abs()).sum()
-        
-        
-        
-
-    def setDataAndDf(self, date_range):
+    def setCloseAndYieldDf(self):
         # date list with buffer for get raw data
-        date_list = self.date_manager.getDateList(date_range, buffer=self.global_args['buffer'])
-        self.raw_data, self.missing_date = self.dataset.getData(date_list)
-        # date list with buffer for backtest loop
-        self.date_list = self.date_manager.getDateList(date_range)
+        self.backtest_date_list_with_buffer = self.date_manager.getDateList(self.global_args['backtest_date_range'], buffer=self.global_args['buffer'])
+        self.backtest_date_list = self.date_manager.getDateList(self.global_args['backtest_date_range'], buffer=0)
+        self.raw_data, self.missing_date = self.dataset.getData(self.backtest_date_list_with_buffer)
         self.asset_close_df = self.dataset.dict2CloseDf(self.raw_data)
         self.asset_daily_yield_df = self.asset_close_df / self.asset_close_df.shift()
 
+    def setPositionPreclose(self):
+        preclose = self.asset_close_df.loc[:self.backtest_date_list[0]].iloc[-1]
+        for k,v in self.asset_positions.items():
+            v.close = preclose[k]
 
+    def beforeBacktest(self):
+        self.setCloseAndYieldDf()
+        self.setBackTestAndRebalanceDate()
+        self.setPositionPreclose()
+
+    def updatePositionBeforeOrder(self):
+        for k, v in self.asset_positions.items():
+            v.setCurrentDate(self.current_date)
+            v.updateBeforeOrders(self.asset_daily_yield_df.loc[self.current_date, k])
+
+    def updatePositionAfterOrder(self):
+        self.value = sum([v.position for v in self.asset_positions.values()]) + self.cash
+        self.historical_values.loc[self.current_date] = self.value
+        self.historical_cash.loc[self.current_date] = [self.cash, self.cash/self.value]
+        self.weights = [self.asset_positions[asset].position/self.value for asset in self.asset_list]
+        self.historical_weights.loc[self.current_date] = self.weights
+        for k,v in self.asset_positions.items():
+            v.setCloseAndReturn(close=self.asset_close_df.loc[self.current_date, k], daily_return=self.asset_daily_yield_df.loc[self.current_date, k])
+            v.updateAfterOrders(self.value)
+
+        
+
+    def prepareUserData(self):
+        # we can't use data on current_date
+        self.user_close = self.asset_close_df.loc[:self.current_date].iloc[-self.global_args['buffer']-1: -1]
+        self.user_yield = self.asset_daily_yield_df.loc[:self.current_date].iloc[-self.global_args['buffer']-1: -1]
+
+        self.orders = []
+        self.weights = None
+
+    def weights2Orders(self):
+        if self.weights is None:
+            return
+        for asset in self.asset_list:
+            self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*(self.weights[asset]-self.asset_positions[asset].weight)))
+
+    def executeOrders(self):
+        self.weights2Orders()
+        for order in self.orders:
+            self.asset_positions[order.asset_name].executeOrder(order, self.dataset.asset_dict[order.asset_name].transection_cost)
+            self.cash -= order.money
+            self.order_manager.addOrder(order)
+
+    def saveResults(self):
+        self.asset_close_df = self.asset_close_df.loc[self.backtest_date_list]
+        self.setResultPath()
+        # weights and values and cash
+        self.historical_weights.to_csv(os.path.join(self.result_path, 'weights.csv'))
+        self.historical_values.to_csv(os.path.join(self.result_path, 'values.csv'))
+        self.historical_cash.to_csv(os.path.join(self.result_path, 'cash.csv'))
+
+        # asset positions
+        with pd.ExcelWriter(os.path.join(self.result_path, 'asset_positions.xlsx')) as writer:
+            for k,v in self.asset_positions.items():
+                v.historical_data.to_excel(writer, sheet_name=k, )
+
+        # orders
+        self.order_manager.historical_order.to_csv(os.path.join(self.result_path, 'orders.csv'))
+        
 
     def run(self, *args, **kwargs):
         '''
         user api
         '''
-        self.transection_cost = self.dataset.getTransectionCost()
-
-        # first generate strategy
-        if self.global_args['generation_date_range']:
-            logging.info('Generating strategy')
-            self.setDataAndDf(self.global_args['generation_date_range'])
-            self.generate()
-
-        # then do backtest
-        logging.info('backtesting')
-        self.setDataAndDf(self.global_args['backtest_date_range'])
-        self.transection_date = self.date_manager.getUpdateDateList(self.global_args['backtest_date_range'], frequency=self.global_args['frequency'], missing_date=self.missing_date)
-        if self.global_args['rebalance_frequency']:
-            self.rebalance_date = self.date_manager.getUpdateDateList(self.global_args['backtest_date_range'], frequency=self.global_args['rebalance_frequency'], missing_date=self.missing_date)
-        else:
-            self.rebalance_date = []
-        for i in tqdm(range(len(self.date_list)),
+        # do backtest
+        logging.debug('backtesting {}'.format(self.strategy_name))
+        self.beforeBacktest()
+        
+        for i in tqdm(range(len(self.backtest_date_list)),
                       desc='{}-backtest'.format(self.strategy_name), 
                       unit='days'):
-            this_date = self.date_list[i]
+            self.current_date = self.backtest_date_list[i]
             # update nav
-            self.updateDaily(this_date)
+            self.updatePositionBeforeOrder()
 
-            if this_date in self.missing_date:
+            if self.current_date in self.missing_date:
                 return
-            self.backtestOneDay(this_date)
+            self.prepareUserData()
+            self.backtestOneDay()
+            self.executeOrders()
+            self.updatePositionAfterOrder()
 
-            if this_date in self.marked_date['update']or this_date in self.marked_date['rebalance']:
-                self.calculateTransectionCost(this_date)
-                self.updateAfterTransection()
-
-        self.asset_close_df = self.asset_close_df.loc[self.date_list]
+        self.saveResults()
+        self.afterBacktest()
 
  
 

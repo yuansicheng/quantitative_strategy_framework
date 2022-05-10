@@ -16,14 +16,14 @@ def strfTime(t):
     return t.strftime("%Y%m%d")
 
 class Evaluator:
-    def __init__(self, strategy_value=None, benchmark_value = None, asset_close_df=None, args=None) -> None:
+    def __init__(self, strategy_value=None, benchmark_value = None, asset_close_df=None, constants=None) -> None:
         self.strategy_value = strategy_value
         self.benchmark_value = benchmark_value
         self.asset_close_df = asset_close_df
 
         self.df = pd.concat((self.strategy_value, self.benchmark_value, self.asset_close_df), axis=1)
         self.daily_yield = (self.df / self.df.shift() - 1).dropna()
-        self.args = args
+        self.constants = constants
 
         self.evaluation = pd.DataFrame(
             columns=self.df.columns,
@@ -39,28 +39,28 @@ class Evaluator:
                 last_year_value = tmp.iloc[0]
                 last_year_value_flag = True
             # logging.debug((year, tmp.iloc[-1], last_year_value))
-            self.evaluation.loc[year] = 100 * ((tmp.iloc[-1] / last_year_value) ** (self.args.DAY_OF_YEAR/tmp.shape[0]) - 1)
+            self.evaluation.loc[year] = 100 * ((tmp.iloc[-1] / last_year_value) ** (self.constants['DAY_OF_YEAR']/tmp.shape[0]) - 1)
             last_year_value = tmp.iloc[-1]
 
     def calculateTotalReturn(self) -> None:
         self.evaluation.loc['累计收益率'] = 100 * (self.df.iloc[-1] / self.df.iloc[0] -1)
 
     def calculateAnnualizedReturn(self) -> None:
-        self.evaluation.loc['年化收益率'] = 100 * ((self.df.iloc[-1] / self.df.iloc[0]) ** (self.args.DAY_OF_YEAR/self.df.shape[0]) - 1)
+        self.evaluation.loc['年化收益率'] = 100 * ((self.df.iloc[-1] / self.df.iloc[0]) ** (self.constants['DAY_OF_YEAR']/self.df.shape[0]) - 1)
 
     def calculateAnnualizedVolatility(self) -> None:
-        self.evaluation.loc['年化波动率'] = 100 * self.daily_yield.std() * (self.args.DAY_OF_YEAR**0.5) 
+        self.evaluation.loc['年化波动率'] = 100 * self.daily_yield.std() * (self.constants['DAY_OF_YEAR']**0.5) 
         # print( self.evaluation.loc['年化波动率'])
 
     def calculateSharpeRatio(self) -> None:
         assert '年化收益率' in self.evaluation.index, '年化收益率 must be calculated before sharp ratio'
         assert '年化波动率' in self.evaluation.index, '年化波动率 must be calculated before sharp ratio'
-        self.evaluation.loc['sharp比率'] = (self.evaluation.loc['年化收益率'] - self.args.RFR*100) / self.evaluation.loc['年化波动率']
+        self.evaluation.loc['sharp比率'] = (self.evaluation.loc['年化收益率'] - self.constants['RFR']*100) / self.evaluation.loc['年化波动率']
 
     def calculateCalmarRatio(self) -> None:
         assert '年化收益率' in self.evaluation.index, '年化收益率 must be calculated before calmar ratio'
         assert '最大回撤' in self.evaluation.index, '最大回撤 must be calculated before calmar ratio'
-        self.evaluation.loc['calmar比率'] = (self.evaluation.loc['年化收益率'] - self.args.RFR*100) / self.evaluation.loc['最大回撤']
+        self.evaluation.loc['calmar比率'] = (self.evaluation.loc['年化收益率'] - self.constants['RFR']*100) / self.evaluation.loc['最大回撤']
 
     def calculateMaxLoss(self) -> None:
         self.evaluation.loc['最大回撤'] = np.nan
@@ -103,10 +103,10 @@ class Evaluator:
             self.evaluation.loc['最长回撤发生区间', asset] = '{}-{}'.format(strfTime(self.df.index[longest_loss_range[0]]), strfTime(self.df.index[longest_loss_range[1]]))
 
     def calculateSortinoRatio(self) -> None:
-        mar = self.args.RFR
+        mar = self.constants['RFR']
         def getSortinoDenominator(data):
             nonlocal mar
-            daily_mar = (1+mar) ** (1/self.args.DAY_OF_YEAR) - 1
+            daily_mar = (1+mar) ** (1/self.constants['DAY_OF_YEAR']) - 1
             data[data>daily_mar] = np.nan
             return (((data.dropna() - daily_mar)**2).sum() / (data.dropna().shape[0]-1)) ** 0.5
         self.evaluation.loc['sortino比率'] = (self.evaluation.loc['年化收益率']/100-mar) / self.daily_yield.apply(getSortinoDenominator)
