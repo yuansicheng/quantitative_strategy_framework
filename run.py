@@ -21,7 +21,7 @@ from framework.dataset import Dataset
 from framework.benchmark import Benchmark
 from framework.date_manager import DateManager
 from framework.evaluator import Evaluator
-from framework.painter import Painter
+from framework.drawFunc import *
 
 def getParser():
     parser = argparse.ArgumentParser()
@@ -114,7 +114,7 @@ def runStrategy(yaml_data):
             runSingleStrategy(Strategy, strategy_args, strategy_name='{}_{}'.format(yaml_data['strategy']['strategy_name'], '_'.join(['{}_{}'.format(k,v) for k,v in this_strategy_args.items() if len(strategy_args[k])>1])), constants=constants, global_args=global_args)
         
 def daemon():
-    global strategy_dict, painter, result_path, date_list
+    global strategy_dict, result_path, date_list, benchmark_value, yaml_data
     strategy_values = pd.DataFrame(index=date_list)
     strategy_threads = [s.thread_id for s in strategy_dict.values()]
     while 1:
@@ -124,15 +124,17 @@ def daemon():
 
         # all strategy stopped
         if running_strategy_num == 0:
-            logging.info('All {} strategies stopped, start summarizing and evaluating'.format(len(strategy_dict)))
             for k,v in strategy_dict.items():
-                painter.summarize(v, os.path.join(result_path, k))
-                strategy_values[k] = v.values
+                strategy_values[k] = v.historical_values
             # draw all_in_one values
-            painter.drawValues(strategy_values, os.path.join(result_path, 'all_in_one.png'),asset_close_df=v.asset_close_df, )
+            asset_close_df = list(strategy_dict.values())[0].asset_close_df
+            drawValues(strategy_values, os.path.join(result_path, 'all_in_one.png'),asset_close_df=asset_close_df, )
+            # evaluator
+            evaluation = Evaluator(strategy_value=strategy_values, benchmark_value=benchmark_value, asset_close_df=asset_close_df, constants=yaml_data['constants']).evaluate()
+            evaluation.to_csv(os.path.join(result_path, 'evaluation.csv'), encoding='utf_8_sig')
             break
 
-        sleep(10)
+        sleep(3)
 
     
 
@@ -173,9 +175,6 @@ if __name__ == '__main__':
     # check result path
     result_path = yaml_data['global_args']['result_path']
     checkPath(result_path)
-
-    # painter
-    painter = Painter()
 
     # run strategy
     strategy_dict = {}

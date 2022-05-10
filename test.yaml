@@ -25,6 +25,7 @@ global_args:
   frequency: monthly
   rebalance_frequency: weekly
   buffer: *DAY_OF_YEAR
+  cash: 10000
 
 ###################################################
 ###################################################
@@ -43,8 +44,7 @@ strategy:
 # note: strategy name and result folder for this strategy will be created autometicly
 ###################################################
 strategy_args:
-  a: [1, 2]
-  b: [3, 4]
+
 
 ###################################################
 ###################################################

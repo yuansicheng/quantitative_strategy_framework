@@ -16,22 +16,31 @@ from framework.strategy import Strategy
 class RP(Strategy):
     def __init__(self, *args, strategy_args={}, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self.strategy_args = strategy_args
+        self.last_weights = None
         
-    def generate(self):
-        pass
 
-    def backtestOneDay(self, this_date):
-        if this_date in self.transection_date:
-            std = self.asset_daily_yield_df.loc[:this_date].iloc[-self.constants['DAY_OF_YEAR']:].std()
-            self.weights.loc[this_date] = (1/std) / (1/std).sum()
-            self.marked_date['update'].append(this_date)
+    def backtestOneDay(self):
+        # self.current_date
+        # self.user_close
+        # self.user_yield
+        if self.current_date in self.update_date:   
+            self.update()       
             return
-        if self.weights.shape[0] and this_date in self.rebalance_date:
-            # do rebalance
-            if not self.marked_date['update']:
-                return
-            self.weights.loc[this_date] = self.weights.loc[self.marked_date['update'][-1]]
-            self.marked_date['rebalance'].append(this_date)
+        if not self.last_weights is None and self.current_date in self.rebalance_date:
+            self.rebalance()
             return
+
+    def update(self):
+        std = self.user_yield.std()
+        self.weights = (1/std) / (1/std).sum() 
+        self.last_weights = self.weights[:]
+
+    def rebalance(self):
+        self.weights = self.last_weights[:]
+        pass 
+
+    def afterBacktest(self):
+        pass 
 
 
