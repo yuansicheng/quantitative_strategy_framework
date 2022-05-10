@@ -9,9 +9,10 @@ import os, sys, argparse, logging
 
 import pandas as pd
 
-class PositionManager():
-    def __init__(self, asset_name) -> None:
-        self.asset_name = asset_name
+class AssetPositionManager():
+    def __init__(self, asset) -> None:
+        self.asset = asset
+        self.asset_name = asset.asset_name
 
         self.current_date = None
         self.weight = 0.
@@ -59,3 +60,14 @@ class PositionManager():
 
         self.updateHistoricalData()
 
+class GroupPositionManager():
+    def __init__(self, group, positon_managers=[]) -> None:
+        self.group = group
+        self.positon_managers = positon_managers
+        self.historical_data = pd.DataFrame(columns=['weight', 'position', 'total_investment', 'total_yield', 'total_return', 'total_transection_cost', ])
+
+    def updateHistoricalData(self, date=None):
+        assert date and date not in self.historical_data.index
+        for key in ['weight', 'position', 'total_investment', 'total_return', 'total_transection_cost', ]:
+            self.historical_data.loc[date, key] = sum([getattr(m, key) for m in self.positon_managers])
+        self.historical_data.loc[date, 'total_yield'] = self.historical_data.loc[date, 'total_return'] / self.historical_data.loc[date, 'total_investment'] if self.historical_data.loc[date, 'total_investment'] != 0 else 0.

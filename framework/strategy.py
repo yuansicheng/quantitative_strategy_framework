@@ -15,7 +15,7 @@ import numpy as np
 
 from collections import defaultdict
 
-from framework.position_manager import PositionManager
+from framework.position_manager import AssetPositionManager, GroupPositionManager
 from framework.order_manager import Order, OrderManager
 
 
@@ -54,7 +54,10 @@ class Strategy(ABC):
         self.historical_weights = pd.DataFrame(columns=self.asset_list)
         self.value = self.cash
         self.historical_values = pd.DataFrame(columns=[self.strategy_name])
-        self.asset_positions = {asset: PositionManager(asset) for asset in self.asset_list}
+
+        # position manager dict
+        self.asset_positions = {asset.asset_name: AssetPositionManager(asset) for asset in self.dataset.asset_dict.values()}
+        self.group_positions = {group.name: GroupPositionManager(group, [self.asset_positions[asset] for asset in group.getAllLeafAsset()]) for group in self.dataset.group.getAllGroup()}
 
         self.order_manager = OrderManager()
 
@@ -116,10 +119,15 @@ class Strategy(ABC):
         self.historical_cash.loc[self.current_date] = [self.cash, self.cash/self.value]
         self.weights = [self.asset_positions[asset].position/self.value for asset in self.asset_list]
         self.historical_weights.loc[self.current_date] = self.weights
+
+        # update position managers, check weight range
         for k,v in self.asset_positions.items():
             v.setCloseAndReturn(close=self.asset_close_df.loc[self.current_date, k], daily_return=self.asset_daily_yield_df.loc[self.current_date, k])
             v.updateAfterOrders(self.value)
-
+            assert v.asset.weight_range[0] < v.weight < v.asset.weight_range[1], 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
+        for k,v in self.group_positions.items():
+            v.updateHistoricalData(date=self.current_date)
+            assert v.group.weight_range[0] < v.historical_data.loc[self.current_date, 'weight'] < v.group.weight_range[1], 'group {} weight is {}, out of range {}'.format(k, v.historical_data.loc[self.current_date, 'weight'], v.group.weight_range)
         
 
     def prepareUserData(self):
@@ -134,7 +142,7 @@ class Strategy(ABC):
         if self.weights is None:
             return
         for asset in self.asset_list:
-            self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*(self.weights[asset]-self.asset_positions[asset].weight)))
+            self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*(self.weights[asset]-self.asset_positions[asset].weight), mark='weight_converted'))
 
     def executeOrders(self):
         self.weights2Orders()
@@ -151,9 +159,13 @@ class Strategy(ABC):
         self.historical_values.to_csv(os.path.join(self.result_path, 'values.csv'))
         self.historical_cash.to_csv(os.path.join(self.result_path, 'cash.csv'))
 
-        # asset positions
+        # positions
         with pd.ExcelWriter(os.path.join(self.result_path, 'asset_positions.xlsx')) as writer:
             for k,v in self.asset_positions.items():
+                v.historical_data.to_excel(writer, sheet_name=k, )
+
+        with pd.ExcelWriter(os.path.join(self.result_path, 'group_positions.xlsx')) as writer:
+            for k,v in self.group_positions.items():
                 v.historical_data.to_excel(writer, sheet_name=k, )
 
         # orders

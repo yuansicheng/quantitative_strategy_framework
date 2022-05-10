@@ -28,6 +28,13 @@ class Group():
             all_leaf += g.getAllLeafAsset()
         return all_leaf
 
+    def getAllGroup(self):
+        all_group = list(self.children.values())
+        for g in self.children.values():
+            all_group += g.getAllGroup()
+        return all_group
+
+
 class Dataset():
     def __init__(self) -> None:
         # {asset_name: Asset instance}
