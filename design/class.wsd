@@ -11,9 +11,10 @@ package framework{
     class Benchmark
     class Dataset 
     class DateManager 
-    class Painter
     class Evaluator
     class YamlLoader
+    class AssetPositionManager
+    class GroupPositionManager
 }
 
 Interface run{
@@ -35,6 +36,12 @@ class Strategy{
     - DateManager date_manager
     - dict constants
     - dict global_args
+    - float historical_cash
+    + DataFrame historical_weights
+    + DataFrame historical_values
+    + dict asset_positions
+    + dict group_positions
+    - OrderManager order_manager
     + run()
 }
 
@@ -85,10 +92,16 @@ class Evaluator{
     + evaluate()
 }
 
-class Painter{
-    + drawWeights()
-    + drawValues()
-    + summarize()
+
+class AssetPositionManager{
+    + DataFrame historical_data
+    + updateHistoricalData()
+    + executeOrder()
+}
+
+class GroupPositionManager{
+    + DataFrame historical_data
+    + updateHistoricalData()
 }
 
 run "1" -- "n" YourStrategy : call >
@@ -98,7 +111,8 @@ run  "1" *-- "1" YamlLoader
 
 YourStrategy --|> Strategy
 Strategy  "1" *-- "1" Dataset
-run  "1" *-- "1" Painter
+Strategy  "1" *-- "n" AssetPositionManager
+Strategy  "1" *-- "n" GroupPositionManager
 run  "1" *-- "1" DateManager
 Strategy  "1" *-left- "1" DateManager
 

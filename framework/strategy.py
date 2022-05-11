@@ -72,14 +72,6 @@ class Strategy(ABC):
         pass
 
     @abstractmethod
-    def update(self, *args, **kwargs):
-        pass   
-    
-    @abstractmethod
-    def rebalance(self, *args, **kwargs):
-        pass
-
-    @abstractmethod
     def afterBacktest(self, *args, **kwargs):
         pass             
 
@@ -92,7 +84,8 @@ class Strategy(ABC):
 
     def setCloseAndYieldDf(self):
         # date list with buffer for get raw data
-        self.backtest_date_list_with_buffer = self.date_manager.getDateList(self.global_args['backtest_date_range'], buffer=self.global_args['buffer'])
+        # +1 for calculate daily yield
+        self.backtest_date_list_with_buffer = self.date_manager.getDateList(self.global_args['backtest_date_range'], buffer=self.global_args['buffer']+1)
         self.backtest_date_list = self.date_manager.getDateList(self.global_args['backtest_date_range'], buffer=0)
         self.raw_data, self.missing_date = self.dataset.getData(self.backtest_date_list_with_buffer)
         self.asset_close_df = self.dataset.dict2CloseDf(self.raw_data)
@@ -127,13 +120,14 @@ class Strategy(ABC):
             assert v.asset.weight_range[0] < v.weight < v.asset.weight_range[1], 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
         for k,v in self.group_positions.items():
             v.updateHistoricalData(date=self.current_date)
-            assert v.group.weight_range[0] < v.historical_data.loc[self.current_date, 'weight'] < v.group.weight_range[1], 'group {} weight is {}, out of range {}'.format(k, v.historical_data.loc[self.current_date, 'weight'], v.group.weight_range)
+            assert v.group.weight_range[0] < v.weight < v.group.weight_range[1], 'group {} weight is {}, out of range {}'.format(k, v.weight, v.group.weight_range)
         
 
     def prepareUserData(self):
         # we can't use data on current_date
         self.user_close = self.asset_close_df.loc[:self.current_date].iloc[-self.global_args['buffer']-1: -1]
         self.user_yield = self.asset_daily_yield_df.loc[:self.current_date].iloc[-self.global_args['buffer']-1: -1]
+        self.user_raw_data = {k: v.iloc[-self.global_args['buffer']-1: -1] for k, v in self.raw_data.items()}
 
         self.orders = []
         self.weights = None

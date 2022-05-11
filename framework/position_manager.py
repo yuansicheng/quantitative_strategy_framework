@@ -44,9 +44,13 @@ class AssetPositionManager():
         assert self.asset_name == order.asset_name
         cost = abs(order.money) * transection_cost
         self.total_transection_cost += cost
-        self.total_investment += order.money
         self.position += order.money - cost
         self.number_of_position += (order.money-cost) / self.close
+
+        if order.money >= 0:
+            self.total_investment += order.money
+        else:
+            self.total_investment *= (1 + order.money/self.position)
         
 
     def updateBeforeOrders(self, daily_yield):
@@ -69,5 +73,6 @@ class GroupPositionManager():
     def updateHistoricalData(self, date=None):
         assert date and date not in self.historical_data.index
         for key in ['weight', 'position', 'total_investment', 'total_return', 'total_transection_cost', ]:
-            self.historical_data.loc[date, key] = sum([getattr(m, key) for m in self.positon_managers])
+            setattr(self, key, sum([getattr(m, key) for m in self.positon_managers]))
+            self.historical_data.loc[date, key] = getattr(self, key)
         self.historical_data.loc[date, 'total_yield'] = self.historical_data.loc[date, 'total_return'] / self.historical_data.loc[date, 'total_investment'] if self.historical_data.loc[date, 'total_investment'] != 0 else 0.

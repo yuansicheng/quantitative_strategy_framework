@@ -72,13 +72,20 @@ def setDataset(dataset_dict):
     return dataset
 
 
-def setBenchmark(benchmark_dict):
-    if not benchmark_dict:
+def setBenchmark(benchmark_data):
+    global date_manager
+    date_list = date_manager.getDateList(yaml_data['global_args']['backtest_date_range'])
+    if not benchmark_data:
         return None
-    benchmark = Benchmark(benchmark_name=benchmark_dict['name'])
-    for asset in benchmark_dict['asset']:
-        benchmark.addAsset(asset['asset_file'], asset['weight'])
-    return benchmark
+    if not isinstance(benchmark_data, list):
+        benchmark_data = [benchmark_data]
+    benchmark_value = pd.DataFrame(index=date_list)
+    for benchmark_dict in benchmark_data:
+        benchmark = Benchmark(benchmark_name=benchmark_dict['name'])
+        for asset in benchmark_dict['asset']:
+            benchmark.addAsset(asset['asset_file'], asset['weight'])
+        benchmark_value[benchmark_dict['name']] = benchmark.getValue(date_list)
+    return benchmark_value
 
 def runSingleStrategy(Strategy, strategy_args, constants={}, global_args={}, strategy_name=''):
     global dataset, date_manager
@@ -114,7 +121,8 @@ def runStrategy(yaml_data):
             runSingleStrategy(Strategy, strategy_args, strategy_name='{}_{}'.format(yaml_data['strategy']['strategy_name'], '_'.join(['{}_{}'.format(k,v) for k,v in this_strategy_args.items() if len(strategy_args[k])>1])), constants=constants, global_args=global_args)
         
 def daemon():
-    global strategy_dict, result_path, date_list, benchmark_value, yaml_data
+    global strategy_dict, result_path, date_manager, benchmark_value, yaml_data
+    date_list = date_manager.getDateList(yaml_data['global_args']['backtest_date_range'])
     strategy_values = pd.DataFrame(index=date_list)
     strategy_threads = [s.thread_id for s in strategy_dict.values()]
     while 1:
@@ -128,7 +136,7 @@ def daemon():
                 strategy_values[k] = v.historical_values
             # draw all_in_one values
             asset_close_df = list(strategy_dict.values())[0].asset_close_df
-            drawValues(strategy_values, os.path.join(result_path, 'all_in_one.png'),asset_close_df=asset_close_df, )
+            drawValues(strategy_values, os.path.join(result_path, 'all_in_one.png'),asset_close_df=asset_close_df, benchmark=benchmark_value)
             # evaluator
             evaluation = Evaluator(strategy_value=strategy_values, benchmark_value=benchmark_value, asset_close_df=asset_close_df, constants=yaml_data['constants']).evaluate()
             evaluation.to_csv(os.path.join(result_path, 'evaluation.csv'), encoding='utf_8_sig')
@@ -149,9 +157,6 @@ if __name__ == '__main__':
 
     yaml_data = getYamlData(yaml_file)
 
-    # generate date range
-    if yaml_data['global_args']['generation_date_range']:
-        yaml_data['global_args']['generation_date_range'] = [datetime(d[0], d[1], d[2]) for d in yaml_data['global_args']['generation_date_range']]
     # backtest date range
     yaml_data['global_args']['backtest_date_range'] = [datetime(d[0], d[1], d[2]) for d in yaml_data['global_args']['backtest_date_range']]
 
@@ -164,13 +169,12 @@ if __name__ == '__main__':
 
     # dataset
     dataset = setDataset(yaml_data['dataset'])
+
+    # date_manager
+    date_manager = DateManager(yaml_data['global_args']['transection_date_file'])
     
     # benchmark
-    benchmark = setBenchmark(yaml_data['benchmark'])
-
-    date_manager = DateManager(yaml_data['global_args']['transection_date_file'])
-    date_list = date_manager.getDateList(yaml_data['global_args']['backtest_date_range'])
-    benchmark_value = benchmark.getValue(date_list) if benchmark else None
+    benchmark_value = setBenchmark(yaml_data['benchmark'])
 
     # check result path
     result_path = yaml_data['global_args']['result_path']

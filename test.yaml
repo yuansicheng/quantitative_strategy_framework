@@ -20,7 +20,6 @@ global_args:
   # each strategy will create a folder in this path
   result_path: result/rp
   transection_date_file: framework/transection_date.csv
-  generation_date_range:
   backtest_date_range: [[2010, 1, 1], [2010, 12, 31]]
   frequency: monthly
   rebalance_frequency: weekly
@@ -69,7 +68,6 @@ dataset:
       group:
         - group_name: bonds
           <<: *group_default
-
           asset:
             - asset_file: data/中债-国债总财富(总值)指数.csv
               <<: *asset_default
@@ -92,10 +90,16 @@ dataset:
 # set benchmark
 ###################################################
 benchmark:
-  name: 0.2x国债+0.8x沪深300
-  asset:
-    - asset_file: data/沪深300指数(全收益).csv
-      weight: 0.2
-    - asset_file: data/中债-国债总财富(总值)指数.csv
-      weight: 0.8
+  - name: 0.2x国债+0.8x沪深300
+    asset:
+      - asset_file: data/沪深300指数(全收益).csv
+        weight: 0.2
+      - asset_file: data/中债-国债总财富(总值)指数.csv
+        weight: 0.8
+  - name: 0.1x国债+0.9x沪深300
+    asset:
+      - asset_file: data/沪深300指数(全收益).csv
+        weight: 0.1
+      - asset_file: data/中债-国债总财富(总值)指数.csv
+        weight: 0.9
   

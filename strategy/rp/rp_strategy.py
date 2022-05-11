@@ -21,9 +21,10 @@ class RP(Strategy):
         
 
     def backtestOneDay(self):
-        # self.current_date
-        # self.user_close
-        # self.user_yield
+        # You can use self.current_date, self.user_close, self.user_yield and self.user_raw_data
+        # save target weights to self.weights
+        # set orders to self.orders
+
         if self.current_date in self.update_date:   
             self.update()       
             return
