@@ -40,7 +40,7 @@
   - self.update_date：按照用户设置的频率计算出的所有需要执行策略的日期；
   - self.rebalance_date：按照用户设置的频率计算出的所有需要执行再平衡的日期；
   - self.user_close：当前日期前buffer天（buffer需在yaml中配置）各资产的收盘价，未归一化；
-  - self.user_yield：当前日期前buffer天各资产的收益率，未-1，即后一天收盘价/前一天收盘价；
+  - self.user_yield：当前日期前buffer天各资产的收益率，未-1，即当天收盘价/前一天收盘价；
   - self.user_raw_data：一个字典，key为资产名称，value为当前日期前buffer天各资产的原始数据；
   - self.asset_positions：一个字典，key为资产名称，value为当前资产的仓位管理器，可获取当前资产的仓位等信息，字段及含义见用户手册；
   - self.group_positions：一个字典，key为资产名称，value为当前分组的仓位管理器字段及含义同上；
