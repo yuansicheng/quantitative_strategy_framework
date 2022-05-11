@@ -6,6 +6,7 @@
 # @Date		:	2022-04-28 
 
 import os, sys, argparse, logging
+import pandas as pd
 
 import matplotlib
 matplotlib.use('Agg')
@@ -31,7 +32,7 @@ def drawWeights(weights, marked_date, fig_name):
     plt.savefig(fig_name)
     plt.close()
 
-def drawValues(values, fig_name, asset_close_df=None, benchmark=None, init_value=1):
+def drawValuesPng(values, fig_name, asset_close_df=None, benchmark=None, init_value=1):
     # draw values
     plt.figure(figsize=(16,4), dpi=256)
     ax = plt.axes()
@@ -49,4 +50,71 @@ def drawValues(values, fig_name, asset_close_df=None, benchmark=None, init_value
     plt.tight_layout()
     plt.savefig(fig_name)
     plt.close()
+
+def drawValuesHtml(values, fig_name, asset_close_df=None, benchmark=None, init_value=1):
+    from pyecharts.charts import Line
+    from pyecharts import options as opts
+
+    values = init_value * (values / values.iloc[0])
+    values = values.round(decimals=5)
+    if not benchmark is None:
+        benchmark = init_value * (benchmark / benchmark.iloc[0])
+        benchmark = benchmark.round(decimals=5)
+    if not asset_close_df is None:
+        asset_close_df = init_value * (asset_close_df / asset_close_df.iloc[0])
+        asset_close_df = asset_close_df.round(decimals=5)
+
+    Line = Line(opts.InitOpts(
+        width='1000px', 
+        height='400px', 
+    ))
+    Line.add_xaxis([x.strftime('%Y-%m-%d') for x in list(values.index)])
+
+    for c in values.columns:
+        Line.add_yaxis(c, list(values[c]), is_smooth=True, z_level=100, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
+            width=3, 
+        ))
+    for c in benchmark.columns:
+        Line.add_yaxis(c, list(benchmark[c]), is_smooth=True, z_level=10, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
+            type_='-',   
+            width=2,
+        ))
+    for c in asset_close_df.columns:
+        Line.add_yaxis(c, list(asset_close_df[c]), is_smooth=True, z_level=1, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
+            opacity=0.6, 
+        ), )
+
+    Line.set_global_opts(xaxis_opts=opts.AxisOpts(
+        type_='time', 
+        split_number=10,
+        name='日期' , 
+        name_location='center', 
+        name_gap=50, 
+    ))
+    Line.set_global_opts(yaxis_opts=opts.AxisOpts(
+        min_='dataMin', 
+        max_='dataMax', 
+        split_number=10, 
+        name='净值' , 
+        name_location='center', 
+        name_gap=50, 
+    ))
+    Line.set_series_opts(label_opts=opts.LabelOpts(
+        is_show=False,  
+    ))
+    Line.set_series_opts(tooltip_opts=opts.TooltipOpts(
+        formatter='{a}: {c}'
+    ))
+
+
+    Line.render(fig_name)
+
+def drawValues(values, fig_name, asset_close_df=None, benchmark=None, init_value=1, type='png'):
+    assert type in ['png', 'html']
+    fig_name = '{}.{}'.format(fig_name, type)
+    if type == 'png':
+        drawValuesPng(values, fig_name, asset_close_df=asset_close_df, benchmark=benchmark, init_value=init_value)
+    if type == 'html':
+        drawValuesHtml(values, fig_name, asset_close_df=asset_close_df, benchmark=benchmark, init_value=init_value)
+
 

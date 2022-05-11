@@ -33,6 +33,7 @@ class Benchmark(Dataset):
         transection_cost = self.getTransectionCost()
 
         close_data = self.dict2CloseDf(raw_data)
+        close_data /= close_data.iloc[0]
         return pd.DataFrame({self.benchmark_name: (close_data * weights).sum(axis=1) - (weights * close_data.iloc[0] * transection_cost).sum()})
         
         

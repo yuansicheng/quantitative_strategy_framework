@@ -134,12 +134,12 @@
 
 - benchmark：业绩基准，可使用list的方式设置多个，用户需指定基准名称、资产文件和权重，各资产权重之和须等于1，例如，
     ``` yaml
-    - name: 0.2x国债+0.8x沪深300
+    - name: 0.8x国债+0.2x沪深300
       asset:
-        - asset_file: data/沪深300指数(全收益).csv
-          weight: 0.2
         - asset_file: data/中债-国债总财富(总值)指数.csv
           weight: 0.8
+        - asset_file: data/沪深300指数(全收益).csv
+          weight: 0.2
     ```
 
 ### 3. 检查运行结果

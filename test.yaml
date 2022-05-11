@@ -25,6 +25,7 @@ global_args:
   rebalance_frequency: weekly
   buffer: *DAY_OF_YEAR
   cash: 10000
+  fig_type: html
 
 ###################################################
 ###################################################
@@ -90,16 +91,16 @@ dataset:
 # set benchmark
 ###################################################
 benchmark:
-  - name: 0.2x国债+0.8x沪深300
+  - name: 0.8x国债+0.2x沪深300
     asset:
-      - asset_file: data/沪深300指数(全收益).csv
-        weight: 0.2
       - asset_file: data/中债-国债总财富(总值)指数.csv
         weight: 0.8
-  - name: 0.1x国债+0.9x沪深300
-    asset:
       - asset_file: data/沪深300指数(全收益).csv
-        weight: 0.1
+        weight: 0.2
+  - name: 0.9x国债+0.1x沪深300
+    asset:
       - asset_file: data/中债-国债总财富(总值)指数.csv
         weight: 0.9
+      - asset_file: data/沪深300指数(全收益).csv
+        weight: 0.1
   
