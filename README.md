@@ -56,7 +56,7 @@
     os.path.join(self.result_path, your_file_name)
     ```   
 
-### 2. 编写策略文件
+### 2. 编写配置文件
 新建一个yaml配置文件，后缀为.yaml或.yml，配置文件中需要包含5部分；
 - constants：配置常用常数。比如DAY_OF_YEAR、RFR等，配置文件中需要引用常数时，可使用&和*的yaml语法；
 - global_args：策略通用的参数，这些参数需要在策略基类中使用，因此必须设置；
@@ -71,6 +71,7 @@
   - rebalance_frequency：策略再平衡频率，同上；
   - buffer：读取原始数据时的缓冲区，向前多读一些数据；
   - cash：初始资金，默认为10000；
+  - fig_type：画净值图的方法，可选png或html。png：使用matplotlib画图，保存一个png图片；html：使用pyecharts画动态图，需要安装pyecharts，生成一个html文件，使用浏览器可打开及动态查看图片。推荐使用html。
 
 - strategy：指定使用的策略，
   - strategy_file：策略文件的路径，用.分隔，策略文件对于run.py的相对路径，比如strategy.rp.rp_strategy；
