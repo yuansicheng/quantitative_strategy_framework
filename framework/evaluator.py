@@ -16,108 +16,53 @@ def strfTime(t):
     return t.strftime("%Y%m%d")
 
 class Evaluator:
-    def __init__(self, strategy_value=None, benchmark_value = None, asset_close_df=None, constants=None) -> None:
+    def __init__(self, strategy_value=None, benchmark_value = None, asset_close_df=None, indicator_calculator=None) -> None:
         self.strategy_value = strategy_value
         self.benchmark_value = benchmark_value
         self.asset_close_df = asset_close_df
 
-        self.df = pd.concat((self.strategy_value, self.benchmark_value, self.asset_close_df), axis=1)
-        self.daily_yield = (self.df / self.df.shift() - 1).dropna()
-        self.constants = constants
+        self.close_data = pd.concat((self.strategy_value, self.benchmark_value, self.asset_close_df), axis=1)
+
+        assert indicator_calculator, 'indicator_calculator is None'
+        self.indicator_calculator = indicator_calculator
 
         self.evaluation = pd.DataFrame(
-            columns=self.df.columns,
+            columns=self.close_data.columns,
         )
 
     def calculateReturnDevideYear(self) -> None:
-        # extract years
-        years = set([i.year for i in self.df.index])
-        last_year_value_flag = False
-        for year in sorted(list(years)):
-            tmp = self.df.loc[str(year)]
-            if not last_year_value_flag:
-                last_year_value = tmp.iloc[0]
-                last_year_value_flag = True
-            # logging.debug((year, tmp.iloc[-1], last_year_value))
-            self.evaluation.loc[year] = 100 * ((tmp.iloc[-1] / last_year_value) ** (self.constants['DAY_OF_YEAR']/tmp.shape[0]) - 1)
-            last_year_value = tmp.iloc[-1]
+        self.evaluation = pd.concat((self.evaluation, self.indicator_calculator.returnDevideYear(self.close_data) * 100))
 
     def calculateTotalReturn(self) -> None:
-        self.evaluation.loc['累计收益率'] = 100 * (self.df.iloc[-1] / self.df.iloc[0] -1)
+        self.evaluation.loc['累计收益率'] = self.indicator_calculator.totalReturn(self.close_data) * 100
 
     def calculateAnnualizedReturn(self) -> None:
-        self.evaluation.loc['年化收益率'] = 100 * ((self.df.iloc[-1] / self.df.iloc[0]) ** (self.constants['DAY_OF_YEAR']/self.df.shape[0]) - 1)
+        self.evaluation.loc['年化收益率'] = self.indicator_calculator.annualizedReturn(self.close_data) * 100
 
     def calculateAnnualizedVolatility(self) -> None:
-        self.evaluation.loc['年化波动率'] = 100 * self.daily_yield.std() * (self.constants['DAY_OF_YEAR']**0.5) 
-        # print( self.evaluation.loc['年化波动率'])
+        self.evaluation.loc['年化波动率'] = self.indicator_calculator.annualizedVolatility(self.close_data) * 100
 
     def calculateSharpeRatio(self) -> None:
-        assert '年化收益率' in self.evaluation.index, '年化收益率 must be calculated before sharp ratio'
-        assert '年化波动率' in self.evaluation.index, '年化波动率 must be calculated before sharp ratio'
-        self.evaluation.loc['sharp比率'] = (self.evaluation.loc['年化收益率'] - self.constants['RFR']*100) / self.evaluation.loc['年化波动率']
+        self.evaluation.loc['sharp比率'] = self.indicator_calculator.sharpeRatio(self.close_data)
 
     def calculateCalmarRatio(self) -> None:
-        assert '年化收益率' in self.evaluation.index, '年化收益率 must be calculated before calmar ratio'
-        assert '最大回撤' in self.evaluation.index, '最大回撤 must be calculated before calmar ratio'
-        self.evaluation.loc['calmar比率'] = (self.evaluation.loc['年化收益率'] - self.constants['RFR']*100) / self.evaluation.loc['最大回撤']
-
-    def calculateMaxLoss(self) -> None:
-        self.evaluation.loc['最大回撤'] = np.nan
-        self.evaluation.loc['最大回撤发生区间'] = np.nan
-        def getAssetMaxLoss(data):
-            data = np.array(data)
-            max_loss = 0
-            # loop
-            for i in range(1, len(data)):
-                this_max_loss = (data[:i].max() - data[i:].min()) / data[:i].max()
-                if this_max_loss > max_loss:
-                    max_loss = this_max_loss
-                    max_loss_range = (data[:i].argmax(), i+data[i:].argmin())
-            return max_loss * 100, max_loss_range
-
-
-        for asset in self.df.columns:
-            max_loss, max_loss_range = getAssetMaxLoss(self.df[asset])
-            self.evaluation.loc['最大回撤', asset] = max_loss
-            self.evaluation.loc['最大回撤发生区间', asset] = '{}-{}'.format(strfTime(self.df.index[max_loss_range[0]]), strfTime(self.df.index[max_loss_range[1]]))
-
-    def calculateLongestLoss(self) -> None:
-        def getLongestLoss(data):
-            index = list(data.index)
-            data = list(data) + [1e6]
-            longest_loss = 0
-            i_loss_start = 0
-            for i in range(1, len(data)):
-                if data[i] >= data[i_loss_start]:
-                    this_loss = (index[i-1]-index[i_loss_start]).days
-                    if this_loss > longest_loss:
-                        longest_loss = this_loss 
-                        longest_loss_range = (i_loss_start, i-1)
-                    i_loss_start = i
-            return longest_loss, longest_loss_range
-                    
-        for asset in self.df.columns:
-            longest_loss, longest_loss_range = getLongestLoss(self.df[asset])
-            self.evaluation.loc['最长回撤持续时间', asset] = longest_loss
-            self.evaluation.loc['最长回撤发生区间', asset] = '{}-{}'.format(strfTime(self.df.index[longest_loss_range[0]]), strfTime(self.df.index[longest_loss_range[1]]))
+        self.evaluation.loc['calmar比率'] = self.indicator_calculator.calmarRatio(self.close_data)
 
     def calculateSortinoRatio(self) -> None:
-        mar = self.constants['RFR']
-        def getSortinoDenominator(data):
-            nonlocal mar
-            daily_mar = (1+mar) ** (1/self.constants['DAY_OF_YEAR']) - 1
-            data[data>daily_mar] = np.nan
-            return (((data.dropna() - daily_mar)**2).sum() / (data.dropna().shape[0]-1)) ** 0.5
-        self.evaluation.loc['sortino比率'] = (self.evaluation.loc['年化收益率']/100-mar) / self.daily_yield.apply(getSortinoDenominator)
+        self.evaluation.loc['sortino比率'] = self.indicator_calculator.sortinoRatio(self.close_data)
+
+    def calculateMaxLoss(self) -> None:
+        result = self.indicator_calculator.maxLoss(self.close_data)
+        self.evaluation.loc['最大回撤'] = result.loc['max_loss'] * 100
+        self.evaluation.loc['最大回撤发生区间'] = result.loc['max_loss_range']
+
+    def calculateLongestLoss(self) -> None:
+        result = self.indicator_calculator.longestLoss(self.close_data)
+        self.evaluation.loc['最长回撤持续时间'] = result.loc['longest_loss']
+        self.evaluation.loc['最长回撤发生区间'] = result.loc['longest_loss_range']
 
     def calculateInformationRatio(self) -> None:
-        for s in self.strategy_value.columns:
-            numerator = 0.01 * self.evaluation.loc['年化收益率'].apply(lambda x: self.evaluation.loc['年化收益率'][s] - x)
-            denominator = self.daily_yield.apply(lambda x: self.daily_yield[s] - x).std()
-            row_name = '信息比率({})'.format(s)
-            self.evaluation.loc[row_name] = numerator / denominator
-            self.evaluation.loc[row_name][s] = '--'
+        self.evaluation = pd.concat((self.evaluation, self.indicator_calculator.informationRatio(self.close_data, target_columns=self.benchmark_value.columns)))
         
 
     def evaluate(self) -> pd.DataFrame:

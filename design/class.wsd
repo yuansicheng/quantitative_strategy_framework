@@ -10,7 +10,8 @@ package framework{
     class Group
     class Benchmark
     class Dataset 
-    class DateManager 
+    class DateManager
+    class IndicatorCalculator 
     class Evaluator
     class YamlLoader
     class AssetPositionManager
@@ -49,6 +50,11 @@ class DateManager{
     - str date_file
     + getDateList()
     + getUpdateDateList()
+}
+
+class IndicatorCalculator{
+    + caculate()
+    ...
 }
 
 class Asset{
@@ -115,6 +121,9 @@ Strategy  "1" *-- "n" AssetPositionManager
 Strategy  "1" *-- "n" GroupPositionManager
 run  "1" *-- "1" DateManager
 Strategy  "1" *-left- "1" DateManager
+
+run  "1" *-- "1" IndicatorCalculator
+Strategy  "1" *-right- "1" IndicatorCalculator
 
 Dataset  "1" *-- "n" Asset
 Dataset  "1" *-- "n" Group

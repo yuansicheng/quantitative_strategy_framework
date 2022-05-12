@@ -26,6 +26,7 @@ class Strategy(ABC):
                  date_manager = None, 
                  constants = None, 
                  global_args = None, 
+                 indicator_calculator=None, 
                  **kwargs, 
                  ) -> None:
         super().__init__()
@@ -44,6 +45,9 @@ class Strategy(ABC):
 
         assert global_args, 'global_args is None'
         self.global_args = global_args
+
+        assert indicator_calculator, 'indicator_calculator is None'
+        self.indicator_calculator = indicator_calculator
 
         self.asset_list = list(self.dataset.asset_dict.keys())
 

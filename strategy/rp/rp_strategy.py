@@ -25,7 +25,7 @@ class RP(Strategy):
         # save target weights to self.weights
         # set orders to self.orders
 
-        if self.current_date in self.update_date:   
+        if self.current_date in self.update_date:
             self.update()       
             return
         if not self.last_weights is None and self.current_date in self.rebalance_date:

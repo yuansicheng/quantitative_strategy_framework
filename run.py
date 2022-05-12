@@ -22,6 +22,7 @@ from framework.benchmark import Benchmark
 from framework.date_manager import DateManager
 from framework.evaluator import Evaluator
 from framework.drawFunc import *
+from framework.indicator_calculator import IndecatorCalculator
 
 def getParser():
     parser = argparse.ArgumentParser()
@@ -88,11 +89,11 @@ def setBenchmark(benchmark_data):
     return benchmark_value
 
 def runSingleStrategy(Strategy, strategy_args, constants={}, global_args={}, strategy_name=''):
-    global dataset, date_manager
+    global dataset, date_manager, indicator_calculator
     global strategy_dict
     assert strategy_name, 'strategy_name must not be empty'
 
-    this_strategy = Strategy(constants=constants, global_args=global_args, strategy_args=strategy_args, strategy_name=strategy_name, dataset=dataset, date_manager=date_manager)
+    this_strategy = Strategy(constants=constants, global_args=global_args, strategy_args=strategy_args, strategy_name=strategy_name, dataset=dataset, date_manager=date_manager, indicator_calculator=indicator_calculator)
     this_thread = threading.Thread(target=this_strategy.run)
     this_thread.start()
     this_strategy.thread_id = this_thread.ident
@@ -121,7 +122,7 @@ def runStrategy(yaml_data):
             runSingleStrategy(Strategy, strategy_args, strategy_name='{}_{}'.format(yaml_data['strategy']['strategy_name'], '_'.join(['{}_{}'.format(k,v) for k,v in this_strategy_args.items() if len(strategy_args[k])>1])), constants=constants, global_args=global_args)
         
 def daemon():
-    global strategy_dict, result_path, date_manager, benchmark_value, yaml_data
+    global strategy_dict, result_path, date_manager, benchmark_value, yaml_data, indicator_calculator
     date_list = date_manager.getDateList(yaml_data['global_args']['backtest_date_range'])
     strategy_values = pd.DataFrame(index=date_list)
     strategy_threads = [s.thread_id for s in strategy_dict.values()]
@@ -138,7 +139,7 @@ def daemon():
             asset_close_df = list(strategy_dict.values())[0].asset_close_df
             drawValues(strategy_values, os.path.join(result_path, 'all_in_one'),asset_close_df=asset_close_df, benchmark=benchmark_value, type=yaml_data['global_args']['fig_type'])
             # evaluator
-            evaluation = Evaluator(strategy_value=strategy_values, benchmark_value=benchmark_value, asset_close_df=asset_close_df, constants=yaml_data['constants']).evaluate()
+            evaluation = Evaluator(strategy_value=strategy_values, benchmark_value=benchmark_value, asset_close_df=asset_close_df, indicator_calculator=indicator_calculator).evaluate()
             evaluation.to_csv(os.path.join(result_path, 'evaluation.csv'), encoding='utf_8_sig')
             break
 
@@ -175,6 +176,9 @@ if __name__ == '__main__':
     
     # benchmark
     benchmark_value = setBenchmark(yaml_data['benchmark'])
+
+    # indicator calculator
+    indicator_calculator = IndecatorCalculator(constants=yaml_data['constants'])
 
     # check result path
     result_path = yaml_data['global_args']['result_path']
