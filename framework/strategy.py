@@ -108,7 +108,8 @@ class Strategy(ABC):
     def updatePositionBeforeOrder(self):
         for k, v in self.asset_positions.items():
             v.setCurrentDate(self.current_date)
-            v.updateBeforeOrders(self.asset_daily_yield_df.loc[self.current_date, k])
+            v.setClose(self.asset_close_df.loc[self.current_date, k])
+            v.updateBeforeOrders()
 
     def updatePositionAfterOrder(self):
         self.value = sum([v.position for v in self.asset_positions.values()]) + self.cash
@@ -119,7 +120,6 @@ class Strategy(ABC):
 
         # update position managers, check weight range
         for k,v in self.asset_positions.items():
-            v.setCloseAndReturn(close=self.asset_close_df.loc[self.current_date, k], daily_return=self.asset_daily_yield_df.loc[self.current_date, k])
             v.updateAfterOrders(self.value)
             assert v.asset.weight_range[0] < v.weight < v.asset.weight_range[1], 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
         for k,v in self.group_positions.items():

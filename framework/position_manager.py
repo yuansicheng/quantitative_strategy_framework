@@ -35,10 +35,11 @@ class AssetPositionManager():
         assert self.current_date not in self.historical_data.index
         self.historical_data.loc[self.current_date] = [self.weight, self.position, self.close, self.daily_return, self.total_investment, self.cost_price, self.total_yield, self.total_return, self.number_of_position, self.total_transection_cost]
 
-    def setCloseAndReturn(self, close=None, daily_return=None):
-        assert close and daily_return
+    def setClose(self, close):
+        assert close
+        self.daily_return = close / self.close
         self.close = close
-        self.daily_return = daily_return
+        
 
     def executeOrder(self, order, transection_cost):
         assert self.asset_name == order.asset_name
@@ -53,8 +54,8 @@ class AssetPositionManager():
             self.total_investment *= (1 + order.money/self.position)
         
 
-    def updateBeforeOrders(self, daily_yield):
-        self.position *= daily_yield
+    def updateBeforeOrders(self):
+        self.position *= self.daily_return
 
     def updateAfterOrders(self, stragy_value):
         self.total_return = self.position - self.total_investment
