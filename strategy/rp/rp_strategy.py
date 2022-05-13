@@ -34,7 +34,7 @@ class RP(Strategy):
 
     def update(self):
         std = self.user_yield.std()
-        self.weights = (1/std) / (1/std).sum() 
+        self.weights = (1/std) / (1/std).sum() * 0.5
         self.last_weights = self.weights[:]
 
     def rebalance(self):

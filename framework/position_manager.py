@@ -69,11 +69,23 @@ class GroupPositionManager():
     def __init__(self, group, positon_managers=[]) -> None:
         self.group = group
         self.positon_managers = positon_managers
-        self.historical_data = pd.DataFrame(columns=['weight', 'position', 'total_investment', 'total_yield', 'total_return', 'total_transection_cost', ])
+        self.columns = ['weight', 'position', 'total_investment', 'total_yield', 'total_return', 'total_transection_cost', ]
+        self.historical_data = pd.DataFrame(columns=self.columns)
+
+        for key in self.columns:
+            setattr(self, key, 0)
 
     def updateHistoricalData(self, date=None):
         assert date and date not in self.historical_data.index
-        for key in ['weight', 'position', 'total_investment', 'total_return', 'total_transection_cost', ]:
+        for key in self.columns:
+            if key == 'total_yield':
+                continue
             setattr(self, key, sum([getattr(m, key) for m in self.positon_managers]))
             self.historical_data.loc[date, key] = getattr(self, key)
         self.historical_data.loc[date, 'total_yield'] = self.historical_data.loc[date, 'total_return'] / self.historical_data.loc[date, 'total_investment'] if self.historical_data.loc[date, 'total_investment'] != 0 else 0.
+        
+        for key in self.columns:
+            setattr(self, key, self.historical_data.loc[date, key])
+
+
+        

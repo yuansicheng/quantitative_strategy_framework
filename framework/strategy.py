@@ -50,18 +50,23 @@ class Strategy(ABC):
         self.indicator_calculator = indicator_calculator
 
         self.asset_list = list(self.dataset.asset_dict.keys())
+        self.group_dict = {g.name: g for g in self.dataset.group.getAllGroup()}
+        self.group_list = list(self.group_dict.keys())
 
         self.cash = self.global_args['cash'] if 'cash' in self.global_args else 10000
-        self.historical_cash = pd.DataFrame(columns=['cash', 'cash_weight'])
 
         # build-in dataframes
-        self.historical_weights = pd.DataFrame(columns=self.asset_list)
+        self.historical_asset_weights = pd.DataFrame(columns=self.asset_list)
+        self.historical_group_weights = pd.DataFrame(columns=self.group_list)
         self.value = self.cash
-        self.historical_values = pd.DataFrame(columns=[self.strategy_name])
+        self.shares = 0
+        self.nav = 1
+        self.total_asset_position = 0
+        self.historical_values = pd.DataFrame(columns=['value', 'shares', 'nav', 'total_asset_position', 'cash', 'cash_weight'])
 
         # position manager dict
         self.asset_positions = {asset.asset_name: AssetPositionManager(asset) for asset in self.dataset.asset_dict.values()}
-        self.group_positions = {group.name: GroupPositionManager(group, [self.asset_positions[asset] for asset in group.getAllLeafAsset()]) for group in self.dataset.group.getAllGroup()}
+        self.group_positions = {group.name: GroupPositionManager(group, [self.asset_positions[asset] for asset in group.getAllLeafAsset()]) for group in self.group_dict.values()}
 
         self.order_manager = OrderManager()
 
@@ -110,21 +115,35 @@ class Strategy(ABC):
             v.setCurrentDate(self.current_date)
             v.setClose(self.asset_close_df.loc[self.current_date, k])
             v.updateBeforeOrders()
+        # update nav
+        if self.shares and self.total_asset_position:
+            new_total_asset_position = sum([v.position for v in self.asset_positions.values()])
+            self.nav *= (new_total_asset_position / self.total_asset_position)
+            self.total_asset_position = new_total_asset_position
 
     def updatePositionAfterOrder(self):
+        # if cash very small, set to 0
+        if self.cash < 1e-3:
+            self.cash = 0
+
         self.value = sum([v.position for v in self.asset_positions.values()]) + self.cash
-        self.historical_values.loc[self.current_date] = self.value
-        self.historical_cash.loc[self.current_date] = [self.cash, self.cash/self.value]
+        # nav do not change
+        self.total_asset_position = sum([v.position for v in self.asset_positions.values()])
+        self.shares = self.total_asset_position / self.nav
+        
+        self.historical_values.loc[self.current_date] = [self.value, self.shares, self.nav, self.total_asset_position, self.cash, self.cash/self.value]
+
         self.weights = [self.asset_positions[asset].position/self.value for asset in self.asset_list]
-        self.historical_weights.loc[self.current_date] = self.weights
+        self.historical_asset_weights.loc[self.current_date] = self.weights
+        self.historical_group_weights.loc[self.current_date] = [m.weight for m in self.group_positions.values()]
 
         # update position managers, check weight range
         for k,v in self.asset_positions.items():
             v.updateAfterOrders(self.value)
-            assert v.asset.weight_range[0] < v.weight < v.asset.weight_range[1], 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
+            assert v.asset.weight_range[0] <= v.weight <= v.asset.weight_range[1], 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
         for k,v in self.group_positions.items():
             v.updateHistoricalData(date=self.current_date)
-            assert v.group.weight_range[0] < v.weight < v.group.weight_range[1], 'group {} weight is {}, out of range {}'.format(k, v.weight, v.group.weight_range)
+            assert v.group.weight_range[0] <= v.weight <= v.group.weight_range[1], 'group {} weight is {}, out of range {}'.format(k, v.weight, v.group.weight_range)
         
 
     def prepareUserData(self):
@@ -140,7 +159,8 @@ class Strategy(ABC):
         if self.weights is None:
             return
         for asset in self.asset_list:
-            self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*(self.weights[asset]-self.asset_positions[asset].weight), mark='weight_converted'))
+            if self.weights[asset]-self.asset_positions[asset].weight:
+                self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*(self.weights[asset]-self.asset_positions[asset].weight), mark='weight_converted'))
 
     def executeOrders(self):
         self.weights2Orders()
@@ -152,10 +172,13 @@ class Strategy(ABC):
     def saveResults(self):
         self.asset_close_df = self.asset_close_df.loc[self.backtest_date_list]
         self.setResultPath()
-        # weights and values and cash
-        self.historical_weights.to_csv(os.path.join(self.result_path, 'weights.csv'))
-        self.historical_values.to_csv(os.path.join(self.result_path, 'values.csv'))
-        self.historical_cash.to_csv(os.path.join(self.result_path, 'cash.csv'))
+
+        # historical data
+        with pd.ExcelWriter(os.path.join(self.result_path, 'historical_data.xlsx')) as writer:
+            self.historical_values.to_excel(writer, sheet_name='values')
+            self.order_manager.historical_order.to_excel(writer, sheet_name='orders')
+            self.historical_asset_weights.to_excel(writer, sheet_name='asset_weights')
+            self.historical_group_weights.to_excel(writer, sheet_name='group_weights')
 
         # positions
         with pd.ExcelWriter(os.path.join(self.result_path, 'asset_positions.xlsx')) as writer:
@@ -165,9 +188,6 @@ class Strategy(ABC):
         with pd.ExcelWriter(os.path.join(self.result_path, 'group_positions.xlsx')) as writer:
             for k,v in self.group_positions.items():
                 v.historical_data.to_excel(writer, sheet_name=k, )
-
-        # orders
-        self.order_manager.historical_order.to_csv(os.path.join(self.result_path, 'orders.csv'))
         
 
     def run(self, *args, **kwargs):

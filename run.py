@@ -134,13 +134,14 @@ def daemon():
         # all strategy stopped
         if running_strategy_num == 0:
             for k,v in strategy_dict.items():
-                strategy_values[k] = v.historical_values
+                strategy_values[k] = v.historical_values['nav']
             # draw all_in_one values
             asset_close_df = list(strategy_dict.values())[0].asset_close_df
             drawValues(strategy_values, os.path.join(result_path, 'all_in_one'),asset_close_df=asset_close_df, benchmark=benchmark_value, type=yaml_data['global_args']['fig_type'])
             # evaluator
             evaluation = Evaluator(strategy_value=strategy_values, benchmark_value=benchmark_value, asset_close_df=asset_close_df, indicator_calculator=indicator_calculator).evaluate()
-            evaluation.to_csv(os.path.join(result_path, 'evaluation.csv'), encoding='utf_8_sig')
+            with pd.ExcelWriter(os.path.join(result_path, 'evaluation.xlsx')) as writer:
+                evaluation.to_excel(writer, sheet_name='evaluation')
             break
 
         sleep(3)

@@ -149,8 +149,8 @@
 
 ### 3. 检查运行结果
 用户可通过运行`python run.py --yaml_file _`运行策略，所有策略都可以通过这种方式执行。策略结束后，将自动保存如下数据：
-- 策略净值汇总图：all_in_one.png
-- 策略评估汇总：evaluation.csv，其中指标如下：
+- 策略净值汇总图：all_in_one.png/html
+- 策略评估汇总：evaluation.xlsx，其中指标如下：
   - 每年的收益率（不足一年的由这部分数据计算年化收益）；
   - 累计收益率=$100 \times (回测期内最后一个净值/第一个净值-1)$；
   - 年化收益率=$100 \times ((回测期内最后一个净值/回测期内第一个净值)^{DAYOFYEAR/回测天数}-1)$；
@@ -165,9 +165,17 @@
   - 信息比率=$(年化收益率-业绩基准年化收益率)/跟踪误差$ （DataFrame中存储策略相对于各个资产的信息比率）。
 
 对于每组参数，将保存：
-- weights.csv：每日各资产的权重；
-- values.csv：策略净值；
-- cash.csv：现金头寸；
+- historical_data.xlsx：包含以下sheet：
+  - values：
+    - value：资产净值+现金；
+    - shares：总份额；
+    - nav：策略净值；
+    - total_asset_position：资产净值总和；
+    - cash：现金；
+    - cash_weight：现金占比；
+  - orders：历史订单；
+  - asset_weights：每日各资产的权重；
+  - group_weights：每日各资产分组的权重；
 - asset_positions.xlsx：资产历史仓位，每个资产占用一个sheet；group_positions.xlsx：资产分组历史仓位，每个分组占用一个sheet，由组内资产仓位计算得到；字段及含义如下，
   - weight：权重；
   - position：仓位，持有该资产的总价值；
@@ -179,3 +187,4 @@
   - total_return：资产总收益；
   - number_of_position：持有数量；
   - total_transection_cost：累计交易成本；
+- group_positions：资产分组历史仓位，字段同上；
