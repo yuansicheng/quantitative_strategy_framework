@@ -27,8 +27,8 @@ Interface run{
 
 class YourStrategy{
     - dict strategy_args
-    - generate()
     - backtestOneDay()
+    - afterBacktest()
 }
 
 class Strategy{
