@@ -111,15 +111,20 @@ def runStrategy(yaml_data):
         for k,v in strategy_args.items():
             strategy_args[k] = v if isinstance(v, list) else [v]
             # drop duplicate
-            strategy_args[k] = list(set(strategy_args[k]))
+            try: strategy_args[k] = list(set(strategy_args[k]))
+            except: pass
         locals = {}
         product_cmd = 'from itertools import product\nproducts = product({})'.format(','.join([str(v) for v in strategy_args.values()]))
         exec(product_cmd, {}, locals)
         keys = list(strategy_args.keys())
         for tmp in locals['products']:
             this_strategy_args = {keys[i]: tmp[i] for i in range(len(tmp))}
+
             # drop k with len(k)=1 to make strategy name shorter
-            runSingleStrategy(Strategy, strategy_args, strategy_name='{}_{}'.format(yaml_data['strategy']['strategy_name'], '_'.join(['{}_{}'.format(k,v) for k,v in this_strategy_args.items() if len(strategy_args[k])>1])), constants=constants, global_args=global_args)
+            strategy_name = '{}_{}'.format(yaml_data['strategy']['strategy_name'], '_'.join(['{}_{}'.format(k,v) for k,v in this_strategy_args.items() if len(strategy_args[k])>1]))
+            if strategy_name.endswith('_'):
+                strategy_name = strategy_name[:-1]
+            runSingleStrategy(Strategy, this_strategy_args, strategy_name=strategy_name, constants=constants, global_args=global_args)
         
 def daemon():
     global strategy_dict, result_path, date_manager, benchmark_value, yaml_data, indicator_calculator

@@ -45,13 +45,24 @@ class AssetPositionManager():
         assert self.asset_name == order.asset_name
         cost = abs(order.money) * transection_cost
         self.total_transection_cost += cost
-        self.position += order.money - cost
+        self.position += (order.money - cost)
         self.number_of_position += (order.money-cost) / self.close
+
+        if self.position <= 0:
+            self.clearAll()
+            return self.position - cost
 
         if order.money >= 0:
             self.total_investment += order.money
         else:
             self.total_investment *= (1 + order.money/self.position)
+        return order.money
+
+    def clearAll(self):
+        self.position = 0.
+        self.total_investment = 0.
+        self.number_of_position = 0.
+
         
 
     def updateBeforeOrders(self):

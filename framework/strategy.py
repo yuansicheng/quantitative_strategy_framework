@@ -115,6 +115,7 @@ class Strategy(ABC):
             v.setCurrentDate(self.current_date)
             v.setClose(self.asset_close_df.loc[self.current_date, k])
             v.updateBeforeOrders()
+        self.value = sum([v.position for v in self.asset_positions.values()]) + self.cash
         # update nav
         if self.shares and self.total_asset_position:
             new_total_asset_position = sum([v.position for v in self.asset_positions.values()])
@@ -140,10 +141,10 @@ class Strategy(ABC):
         # update position managers, check weight range
         for k,v in self.asset_positions.items():
             v.updateAfterOrders(self.value)
-            assert v.asset.weight_range[0] <= v.weight <= v.asset.weight_range[1], 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
+            # assert v.asset.weight_range[0] <= v.weight <= v.asset.weight_range[1], 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
         for k,v in self.group_positions.items():
             v.updateHistoricalData(date=self.current_date)
-            assert v.group.weight_range[0] <= v.weight <= v.group.weight_range[1], 'group {} weight is {}, out of range {}'.format(k, v.weight, v.group.weight_range)
+            # assert v.group.weight_range[0] <= v.weight <= v.group.weight_range[1], 'group {} weight is {}, out of range {}'.format(k, v.weight, v.group.weight_range)
         
 
     def prepareUserData(self):
@@ -153,20 +154,19 @@ class Strategy(ABC):
         self.user_raw_data = {k: v.iloc[-self.global_args['buffer']-1: -1] for k, v in self.raw_data.items()}
 
         self.orders = []
-        self.weights = None
+        self.weights = pd.Series(index=self.asset_list)
+        self.weights[:] = np.nan
 
     def weights2Orders(self):
-        if self.weights is None:
-            return
-        for asset in self.asset_list:
-            if self.weights[asset]-self.asset_positions[asset].weight:
-                self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*(self.weights[asset]-self.asset_positions[asset].weight), mark='weight_converted'))
+        for asset in self.weights.dropna().index:
+            if self.weights[asset]-self.asset_positions[asset].weight != 0:
+                self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*(self.weights[asset]) - self.asset_positions[asset].position, mark='weight_converted'))
 
     def executeOrders(self):
         self.weights2Orders()
         for order in self.orders:
-            self.asset_positions[order.asset_name].executeOrder(order, self.dataset.asset_dict[order.asset_name].transection_cost)
-            self.cash -= order.money
+            cost = self.asset_positions[order.asset_name].executeOrder(order, self.dataset.asset_dict[order.asset_name].transection_cost)
+            self.cash -= cost
             self.order_manager.addOrder(order)
 
     def saveResults(self):
