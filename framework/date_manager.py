@@ -1,0 +1,56 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# @Author	:	yuansc
+# @Contact	:	yuansicheng@ihep.ac.cn
+# @Date		:	2022-02-24 
+
+import os, sys, argparse, logging
+from datetime import datetime
+
+import pandas as pd
+
+class DateManager():
+    def __init__(self, date_file) -> None:
+        self.date_file = date_file
+        self.setAllDateList()
+
+    def setAllDateList(self):
+        self.all_date = pd.read_csv(self.date_file, encoding = 'gb2312')
+        self.all_date.index = [pd.to_datetime(d) for d in self.all_date['日期序列']]
+
+    def getDateList(self, date_range, buffer=0):
+        assert len(date_range) == 2, 'len(date_range) must be 2'
+        assert self.all_date.index[0] < date_range[0] < date_range[1] < self.all_date.index[-1], 'date_file should include date_range'
+        assert buffer >=0, 'buffer must >= 0'
+        before_shape =  self.all_date.loc[:date_range[0]].shape[0]
+        assert before_shape >= buffer, 'Do not have enough date for buffer'
+        return self.all_date.loc[:date_range[1]].iloc[before_shape-buffer:].index
+
+    def getUpdateDateList(self, date_range, frequency=1):
+        assert isinstance(frequency, int) or frequency in ['weekly', 'monthly', 'quarterly'], 'frequency must be int type or [\'weekly\', \'monthly\', \'quarterly\']'
+        date_list = self.getDateList(date_range)
+        if isinstance(frequency, int):
+            return [date_list[i] for i in range(len(date_list)) if i % frequency==0]
+        tmp = pd.DataFrame()
+        tmp['date'] = date_list
+        tmp['year'] = [d.year for d in date_list]
+        if frequency == 'weekly':
+            tmp['week_of_year'] = [d.weekofyear for d in date_list]
+            return list(tmp.groupby(['year', 'week_of_year']).first()['date'])
+        if frequency == 'monthly':
+            tmp['month'] = [d.month for d in date_list]
+            return list(tmp.groupby(['year', 'month']).first()['date'])
+        if frequency == 'quarterly':
+            tmp['quarter'] = [(d.month-1)//3 for d in date_list]
+            return list(tmp.groupby(['year', 'quarter']).first()['date'].values)
+
+    
+
+# # test
+# dm = DateManager('scripts/base_classes/transection_date.csv')
+# date_range = [datetime(2010,1,1), datetime(2011,1,1)]
+# print(dm.getUpdateDateList(date_range, frequency='weekly'))
+
+    
+    

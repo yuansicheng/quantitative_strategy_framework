@@ -1,0 +1,133 @@
+@startuml
+scale 8192*8192
+
+Interface run
+class YourStrategy
+
+package framework{
+    class Strategy
+    class Asset 
+    class Group
+    class Benchmark
+    class Dataset 
+    class DateManager
+    class IndicatorCalculator 
+    class Evaluator
+    class YamlLoader
+    class AssetPositionManager
+    class GroupPositionManager
+}
+
+Interface run{
+    + str yaml_file
+    + importStrategy()
+    + runStrategy()
+    + daemon()
+} 
+
+class YourStrategy{
+    - dict strategy_args
+    - backtestOneDay()
+    - afterBacktest()
+}
+
+class Strategy{
+    + str strategy_name
+    - Dataset dataset
+    - DateManager date_manager
+    - dict constants
+    - dict global_args
+    - float historical_cash
+    + DataFrame historical_weights
+    + DataFrame historical_values
+    + dict asset_positions
+    + dict group_positions
+    - OrderManager order_manager
+    + run()
+}
+
+class DateManager{
+    - str date_file
+    + getDateList()
+    + getUpdateDateList()
+}
+
+class IndicatorCalculator{
+    + caculate()
+    ...
+}
+
+class Asset{
+    + str asset_name
+    - str asset_file
+    + float transection_cost
+    + list weight_range
+    + getData()
+}
+
+class Group{
+    + str name
+    + float transection_cost
+    + OrderedDict children
+    + OrderedDict assets
+    + list weight_range
+    + getAllLeafAsset()
+}
+
+class Dataset{
+    + OrderedDict asset_dict
+    + Group group
+    + addAsset()
+    + getData()
+}
+
+class Benchmark{
+    + OrderedDict asset_dict
+    + OrderedDict asset_weight
+    + getValue()
+}
+
+class YamlLoader{
+    + parseYaml()
+}
+
+class Evaluator{
+    - DataFrame strategy_value
+    - DataFrame benchmark_value
+    - DataFrame asset_close_df
+    + evaluate()
+}
+
+
+class AssetPositionManager{
+    + DataFrame historical_data
+    + updateHistoricalData()
+    + executeOrder()
+}
+
+class GroupPositionManager{
+    + DataFrame historical_data
+    + updateHistoricalData()
+}
+
+run "1" -- "n" YourStrategy : call >
+run  "1" *-- "n" Benchmark
+run  "1" *-- "1" Evaluator
+run  "1" *-- "1" YamlLoader
+
+YourStrategy --|> Strategy
+Strategy  "1" *-- "1" Dataset
+Strategy  "1" *-- "n" AssetPositionManager
+Strategy  "1" *-- "n" GroupPositionManager
+run  "1" *-- "1" DateManager
+Strategy  "1" *-left- "1" DateManager
+
+run  "1" *-- "1" IndicatorCalculator
+Strategy  "1" *-right- "1" IndicatorCalculator
+
+Dataset  "1" *-- "n" Asset
+Dataset  "1" *-- "n" Group
+Benchmark  --|> Dataset
+
+
+@enduml
