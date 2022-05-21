@@ -31,7 +31,7 @@ class TopkMom(Strategy):
         # set orders to self.orders
 
         if self.current_date in self.update_date:
-            self.update()       
+            self.update()    
             return
         if not self.last_weights is None and self.current_date in self.rebalance_date:
             self.rebalance()
@@ -46,7 +46,8 @@ class TopkMom(Strategy):
         self.last_weights = self.weights[:]
 
     def rebalance(self):
-        self.weights = self.last_weights[:]
+        target_asset = list(set(self.on_sale_assets) & set(self.last_weights.index))
+        self.weights = self.last_weights.loc[target_asset]
         pass 
 
     def afterBacktest(self):

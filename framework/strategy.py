@@ -168,18 +168,35 @@ class Strategy(ABC):
 
     def weights2Orders(self):
         for asset in self.weights.dropna().index:
-            if self.dataset.asset_dict[asset].stop_date == self.current_date:
-                self.orders.append(Order(date=self.current_date, asset_name=asset, money=-self.asset_positions[asset].position))
-            elif self.weights[asset]-self.asset_positions[asset].weight != 0:
+            if self.weights[asset]-self.asset_positions[asset].weight != 0:
                 self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*self.weights[asset] - self.asset_positions[asset].position, mark='weight_converted'))
+
+    def clearStopAsset(self):
+        for asset in self.on_sale_assets:
+            if not self.dataset.asset_dict[asset].stop_date == self.current_date:
+                continue
+            if not self.asset_positions[asset].position:
+                continue
+            self.orders.append(Order(date=self.current_date, asset_name=asset, money=-self.asset_positions[asset].position, mark='clear_all'))
+
+    def groupOrder(self):
+        order_dict = {}
+        for order in self.orders:
+            if order.mark == 'clear_all' or order.asset_name not in order_dict:
+                order_dict[order.asset_name] = order
+            elif order_dict[order.asset_name].mark != 'clear_all':
+                order_dict[order.asset_name].money += order.money
+        self.orders = list(order_dict.values())
 
     def executeOrders(self):
         self.weights2Orders()
+        self.clearStopAsset()
+        self.groupOrder()
         # sell first, then buy
         self.orders.sort(key=lambda x: x.money)
         for order in self.orders:
-            if not order.asset_name in self.on_sale_assets:
-                logging.error('Trying to operate not on-sale asset: {}'.format(order.asset_name))
+            if order.asset_name not in self.on_sale_assets:
+                logging.error('{}-Trying to operate not on-sale asset: {}'.format(self.current_date, order.asset_name))
                 continue
             # print(self.current_date, 'before', sum([v.position for v in self.asset_positions.values()]) + self.cash, self.cash)
             cost = self.asset_positions[order.asset_name].executeOrder(order, self.dataset.asset_dict[order.asset_name].transection_cost)

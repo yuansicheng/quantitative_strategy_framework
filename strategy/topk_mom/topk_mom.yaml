@@ -20,7 +20,7 @@ global_args:
   # each strategy will create a folder in this path
   result_path: result/topk_mom
   transection_date_file: framework/transection_date.csv
-  backtest_date_range: [[2016, 1, 1], [2020, 12, 31]]
+  backtest_date_range: [[2016, 1, 1], [2021, 12, 31]]
   frequency: monthly
   rebalance_frequency: weekly
   buffer: *DAY_OF_YEAR
