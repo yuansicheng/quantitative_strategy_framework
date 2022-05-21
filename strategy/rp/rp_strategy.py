@@ -39,7 +39,7 @@ class RP(Strategy):
         self.last_weights = self.weights[:]
 
     def rebalance(self):
-        self.weights = self.last_weights[:]
+        self.weights = self.weights.loc[self.on_sale_assets]
         pass 
 
     def afterBacktest(self):

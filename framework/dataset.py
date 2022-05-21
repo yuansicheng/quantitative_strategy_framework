@@ -45,7 +45,7 @@ class Dataset():
         self.group = Group(name='root')
 
     def getAssetName(self, asset_file):
-        return os.path.basename(asset_file).split('.')[0]
+        return '.'.join(os.path.basename(asset_file).split('.')[:-1])
 
     def addGroup(self, group='', weight_range=[0., 1.], transection_cost=0.,):
         group_split = group.split('/')

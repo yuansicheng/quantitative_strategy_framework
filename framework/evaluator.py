@@ -62,6 +62,8 @@ class Evaluator:
         self.evaluation.loc['最长回撤发生区间'] = result.loc['longest_loss_range']
 
     def calculateInformationRatio(self) -> None:
+        if self.benchmark_value is None:
+            return
         self.evaluation = pd.concat((self.evaluation, self.indicator_calculator.informationRatio(self.close_data, target_columns=self.benchmark_value.columns)))
         
 

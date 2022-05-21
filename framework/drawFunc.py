@@ -61,13 +61,6 @@ def drawValuesHtml(values, fig_name, asset_close_df=None, benchmark=None, init_v
 
     values = init_value * (values / values.iloc[0])
     values = values.round(decimals=5)
-    if not benchmark is None:
-        benchmark = init_value * (benchmark / benchmark.iloc[0])
-        benchmark = benchmark.round(decimals=5)
-    # if not asset_close_df is None:
-    #     asset_close_df = asset_close_df.fillna(method='ffill').fillna(method='bfill')
-    #     asset_close_df = init_value * (asset_close_df / asset_close_df.iloc[0])
-    #     asset_close_df = asset_close_df.round(decimals=5)
 
     Line = Line(opts.InitOpts(
         width='1000px', 
@@ -79,16 +72,18 @@ def drawValuesHtml(values, fig_name, asset_close_df=None, benchmark=None, init_v
         Line.add_yaxis(c, replaceNan(values[c]), is_smooth=True, z_level=100, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
             width=3, 
         ))
-    for c in benchmark.columns:
-        Line.add_yaxis(c, replaceNan(benchmark[c]), is_smooth=True, z_level=10, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
-            type_='-',   
-            width=2,
-        ))
+    if not benchmark is None:
+        for c in benchmark.columns:
+            Line.add_yaxis(c, replaceNan(benchmark[c]), is_smooth=True, z_level=10, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
+                type_='-',   
+                width=2,
+            ))
 
-    for c in asset_close_df.columns:      
-        Line.add_yaxis(c, replaceNan(asset_close_df[c]), is_smooth=True, z_level=1, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
-            opacity=0.6, 
-        ), )
+    if not asset_close_df is None:
+        for c in asset_close_df.columns:  
+            Line.add_yaxis(c, replaceNan(asset_close_df[c]), is_smooth=True, z_level=1, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
+                opacity=0.6, 
+            ), )
 
     Line.set_global_opts(xaxis_opts=opts.AxisOpts(
         type_='time', 
@@ -126,6 +121,8 @@ def drawValues(values, fig_name, asset_close_df=None, benchmark=None, init_value
 
 def replaceNan(s):
     tmp = s
+    if tmp.dropna().shape[0] == 0:
+        return [None for x in tmp.values]
     first_value = tmp.dropna().iloc[0]
     tmp /= first_value
     tmp = tmp.round(decimals=5)

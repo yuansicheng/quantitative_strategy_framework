@@ -44,12 +44,13 @@ class AssetPositionManager():
     def executeOrder(self, order, transection_cost):
         assert self.asset_name == order.asset_name
         cost = abs(order.money) * transection_cost
+
+        if -order.money > self.position - cost:
+            return self.clearAll(transection_cost)
+       
         self.total_transection_cost += cost
         self.position += (order.money - cost)
         self.number_of_position += (order.money-cost) / self.close
-
-        if self.position <= 0:
-            return self.clearAll()
             
         if order.money >= 0:
             self.total_investment += order.money
@@ -58,19 +59,23 @@ class AssetPositionManager():
         return order.money
 
     def clearAll(self, transection_cost):
+        return_money = -self.position + self.position * transection_cost
         self.position = 0.
         self.total_investment = 0.
         self.number_of_position = 0.
-        return self.position - self.position * transection_cost
+        return return_money
         
 
     def updateBeforeOrders(self):
         self.position *= self.daily_return
 
+    def updateWeight(self, stragy_value):
+        self.weight = self.position / stragy_value if stragy_value != 0 else 0.
+
     def updateAfterOrders(self, stragy_value):
         self.total_return = self.position - self.total_investment
         self.total_yield = self.total_return / self.total_investment if self.total_investment != 0 else 0.
-        self.weight = self.position / stragy_value if stragy_value != 0 else 0.
+        self.updateWeight(stragy_value)
         self.cost_price = self.position / self.number_of_position if self.number_of_position != 0 else 0.
 
         self.updateHistoricalData()

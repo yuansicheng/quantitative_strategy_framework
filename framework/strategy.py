@@ -113,6 +113,11 @@ class Strategy(ABC):
             v.setClose(self.asset_close_df.loc[self.current_date, k])
             v.updateBeforeOrders()
         self.value = sum([v.position for v in self.asset_positions.values()]) + self.cash
+
+        # update weight
+        for k, v in self.asset_positions.items():
+            v.updateWeight(self.value)
+
         # update nav
         if self.shares and self.total_asset_position:
             new_total_asset_position = sum([v.position for v in self.asset_positions.values()])
@@ -163,23 +168,25 @@ class Strategy(ABC):
 
     def weights2Orders(self):
         for asset in self.weights.dropna().index:
-            if self.weights[asset]-self.asset_positions[asset].weight != 0:
-                self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*(self.weights[asset]) - self.asset_positions[asset].position, mark='weight_converted'))
+            if self.dataset.asset_dict[asset].stop_date == self.current_date:
+                self.orders.append(Order(date=self.current_date, asset_name=asset, money=-self.asset_positions[asset].position))
+            elif self.weights[asset]-self.asset_positions[asset].weight != 0:
+                self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*self.weights[asset] - self.asset_positions[asset].position, mark='weight_converted'))
 
     def executeOrders(self):
         self.weights2Orders()
+        # sell first, then buy
+        self.orders.sort(key=lambda x: x.money)
         for order in self.orders:
             if not order.asset_name in self.on_sale_assets:
                 logging.error('Trying to operate not on-sale asset: {}'.format(order.asset_name))
                 continue
+            # print(self.current_date, 'before', sum([v.position for v in self.asset_positions.values()]) + self.cash, self.cash)
             cost = self.asset_positions[order.asset_name].executeOrder(order, self.dataset.asset_dict[order.asset_name].transection_cost)
             self.cash -= cost
+            # print(self.current_date, 'after', sum([v.position for v in self.asset_positions.values()]) + self.cash, self.cash)
             self.order_manager.addOrder(order)
-
-        # clear stop assets
-        for k,v in self.asset_positions.items():
-            if self.dataset.asset_dict[k].stop_date == self.current_date:
-                self.cash -= v.clearAll(v.asset.transection_cost)
+                
 
     def saveResults(self):
         self.asset_close_df = self.asset_close_df.loc[self.backtest_date_list]

@@ -131,10 +131,12 @@ def returnDevideYear(close_data, DAY_OF_YEAR=252):
     return result
 
 def totalReturn(close_data):
+    close_data = close_data.fillna(method='ffill').fillna(method='bfill')
     return close_data.iloc[-1] / close_data.iloc[0] -1
 
 def annualizedReturn(close_data, DAY_OF_YEAR=252):
-    return (close_data.iloc[-1] / close_data.iloc[0]) ** (DAY_OF_YEAR/close_data.shape[0]) - 1
+    not_na_num = close_data.notna().sum()
+    return (totalReturn(close_data) + 1) ** (DAY_OF_YEAR/not_na_num) - 1
 
 
 def annualizedVolatility(close_data, DAY_OF_YEAR=252):
@@ -158,7 +160,7 @@ def maxLoss(close_data):
         return max_loss, max_loss_range
 
     for asset in close_data.columns:
-        max_loss, max_loss_range = getAssetMaxLoss(close_data[asset])
+        max_loss, max_loss_range = getAssetMaxLoss(close_data[asset].dropna())
         result.loc['max_loss', asset] = max_loss
         result.loc['max_loss_range', asset] = '{}-{}'.format(strfTime(close_data.index[max_loss_range[0]]), strfTime(close_data.index[max_loss_range[1]])) if max_loss_range else ''
     return result
@@ -183,7 +185,7 @@ def longestLoss(close_data):
         return longest_loss, longest_loss_range
                 
     for asset in close_data.columns:
-        longest_loss, longest_loss_range = getLongestLoss(close_data[asset])
+        longest_loss, longest_loss_range = getLongestLoss(close_data[asset].dropna())
         result.loc['longest_loss', asset] = longest_loss
         result.loc['longest_loss_range', asset] = '{}-{}'.format(strfTime(close_data.index[longest_loss_range[0]]), strfTime(close_data.index[longest_loss_range[1]])) if longest_loss_range else ''
     return result
