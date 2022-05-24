@@ -107,22 +107,26 @@ class Strategy(ABC):
         self.setCloseAndYieldDf()
         self.setBackTestAndRebalanceDate()
 
+    def getTotalAssetPosition(self):
+        return sum([v.position for v in self.asset_positions.values()])
+
     def updateBeforeOrders(self):
         for k, v in self.asset_positions.items():
             v.setCurrentDate(self.current_date)
             v.setClose(self.asset_close_df.loc[self.current_date, k])
             v.updateBeforeOrders()
-        self.value = sum([v.position for v in self.asset_positions.values()]) + self.cash
+        self.value = self.getTotalAssetPosition() + self.cash
 
         # update weight
         for k, v in self.asset_positions.items():
             v.updateWeight(self.value)
 
         # update nav
-        if self.shares and self.total_asset_position:
-            new_total_asset_position = sum([v.position for v in self.asset_positions.values()])
+        new_total_asset_position = self.getTotalAssetPosition()
+        if self.total_asset_position:
             self.nav *= (new_total_asset_position / self.total_asset_position)
-            self.total_asset_position = new_total_asset_position
+        self.total_asset_position = new_total_asset_position
+        self.cash_brfore_order = self.cash
 
         # update asset ages
         for asset in self.asset_list:
@@ -135,10 +139,17 @@ class Strategy(ABC):
         if abs(self.cash) < 1e-3:
             self.cash = 0
 
-        self.value = sum([v.position for v in self.asset_positions.values()]) + self.cash
-        # nav do not change
-        self.total_asset_position = sum([v.position for v in self.asset_positions.values()])
-        self.shares = self.total_asset_position / self.nav
+        new_total_asset_position = self.getTotalAssetPosition()
+        self.value = new_total_asset_position + self.cash
+        # update shares and nav 
+        if not new_total_asset_position:
+            self.shares = 0      
+        if self.total_asset_position == 0:
+            self.shares = new_total_asset_position
+        else:
+            self.shares *= (1 + (self.cash - self.cash_brfore_order) / self.total_asset_position)
+        self.nav = new_total_asset_position / self.shares if self.shares else self.nav
+        self.total_asset_position = new_total_asset_position
         
         self.historical_values.loc[self.current_date] = [self.value, self.shares, self.nav, self.total_asset_position, self.cash, self.cash/self.value]
 
