@@ -154,12 +154,13 @@ class Strategy(ABC):
         self.historical_values.loc[self.current_date] = [self.value, self.shares, self.nav, self.total_asset_position, self.cash, self.cash/self.value]
 
         # update position managers, check weight range
-        for k,v in self.asset_positions.items():
-            v.updateAfterOrders(self.value)
-            assert v.asset.weight_range[0] <= v.weight <= v.asset.weight_range[1], 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
-        for k,v in self.group_positions.items():
-            v.updateHistoricalData(date=self.current_date)
-            assert v.group.weight_range[0] <= v.weight <= v.group.weight_range[1], 'group {} weight is {}, out of range {}'.format(k, v.weight, v.group.weight_range)
+        if self.orders:
+            for k,v in self.asset_positions.items():
+                v.updateAfterOrders(self.value)
+                assert v.asset.weight_range[0] - 1e-3 <= v.weight <= v.asset.weight_range[1] + 1e-3, 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
+            for k,v in self.group_positions.items():
+                v.updateHistoricalData(date=self.current_date)
+                assert v.group.weight_range[0] - 1e-3 <= v.weight <= v.group.weight_range[1] + 1e-3, 'group {} weight is {}, out of range {}'.format(k, v.weight, v.group.weight_range)
 
         self.weights = [self.asset_positions[asset].position/self.value for asset in self.asset_list]
         self.historical_asset_weights.loc[self.current_date] = self.weights
