@@ -15,7 +15,7 @@ class AssetPositionManager():
         self.asset = asset
         self.asset_name = asset.asset_name
 
-        self.columns = ['weight', 'position', 'close', 'daily_return', 'total_investment', 'cost_price', 'total_yield', 'total_return', 'number_of_position', 'total_transection_cost', ]
+        self.columns = ['weight', 'position', 'close', 'daily_return', 'total_investment', 'cost_price', 'current_yield', 'current_return', 'historical_return', 'total_return', 'number_of_position', 'total_transection_cost', ]
         for c in self.columns:
             setattr(self, c, 0)
         self.current_date = None
@@ -43,13 +43,17 @@ class AssetPositionManager():
             return self.clearAll(transection_cost)
        
         self.total_transection_cost += cost
-        self.position += (order.money - cost)
-        self.number_of_position += (order.money-cost) / self.close
+        
             
         if order.money >= 0:
             self.total_investment += order.money
+            self.position += (order.money - cost)
+            self.number_of_position += (order.money-cost) / self.close
         else:
             self.total_investment *= (1 + order.money/self.position)
+            self.position += order.money
+            self.number_of_position += order.money / self.close
+            self.historical_return += -order.money * self.current_yield
         return order.money
 
     def clearAll(self, transection_cost):
@@ -67,10 +71,11 @@ class AssetPositionManager():
         self.weight = self.position / stragy_value if stragy_value else 0.
 
     def updateAfterOrders(self, stragy_value):
-        self.total_return = self.position - self.total_investment
-        self.total_yield = self.total_return / self.total_investment if self.total_investment else 0.
+        self.current_return = self.position - self.total_investment
+        self.current_yield = self.current_return / self.total_investment if self.total_investment else 0.
+        self.total_return = self.historical_return + self.current_return
         self.updateWeight(stragy_value)
-        self.cost_price = self.position / self.number_of_position if self.number_of_position else 0.
+        self.cost_price = self.total_investment / self.number_of_position if self.number_of_position else 0.
 
         self.updateHistoricalData()
 

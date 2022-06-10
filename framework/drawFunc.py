@@ -18,7 +18,7 @@ plt.rcParams['axes.unicode_minus'] = False
 try:
     plt.set_loglevel("info") 
 except Exception as e:
-    logging.error(e)
+    print(e)
 
 def drawWeights(weights, marked_date, fig_name):
     # draw weights

@@ -147,19 +147,22 @@ class Strategy(ABC):
         if self.total_asset_position == 0:
             self.shares = new_total_asset_position
         else:
-            self.shares *= (1 + (self.cash - self.cash_brfore_order) / self.total_asset_position)
+            # print(self.current_date, self.shares, self.cash, self.cash_brfore_order, self.total_asset_position)
+            self.shares *= (1 + (self.cash_brfore_order - self.cash) / self.total_asset_position)
         self.nav = new_total_asset_position / self.shares if self.shares else self.nav
         self.total_asset_position = new_total_asset_position
         
         self.historical_values.loc[self.current_date] = [self.value, self.shares, self.nav, self.total_asset_position, self.cash, self.cash/self.value]
 
         # update position managers, check weight range
-        if self.orders:
-            for k,v in self.asset_positions.items():
-                v.updateAfterOrders(self.value)
+        
+        for k,v in self.asset_positions.items():
+            v.updateAfterOrders(self.value)
+            if self.orders:
                 assert v.asset.weight_range[0] - 1e-3 <= v.weight <= v.asset.weight_range[1] + 1e-3, 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
-            for k,v in self.group_positions.items():
-                v.updateHistoricalData(date=self.current_date)
+        for k,v in self.group_positions.items():
+            v.updateHistoricalData(date=self.current_date)
+            if self.orders:
                 assert v.group.weight_range[0] - 1e-3 <= v.weight <= v.group.weight_range[1] + 1e-3, 'group {} weight is {}, out of range {}'.format(k, v.weight, v.group.weight_range)
 
         self.weights = [self.asset_positions[asset].position/self.value for asset in self.asset_list]
@@ -210,6 +213,8 @@ class Strategy(ABC):
             if order.asset_name not in self.on_sale_assets:
                 logging.error('{}-Trying to operate not on-sale asset: {}'.format(self.current_date, order.asset_name))
                 continue
+            if order.money > self.cash:
+                order.money = self.cash
             # print(self.current_date, 'before', sum([v.position for v in self.asset_positions.values()]) + self.cash, self.cash)
             cost = self.asset_positions[order.asset_name].executeOrder(order, self.dataset.asset_dict[order.asset_name].transection_cost)
             self.cash -= cost

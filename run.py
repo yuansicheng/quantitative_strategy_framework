@@ -169,6 +169,7 @@ if __name__ == '__main__':
 
     loglevel = yaml_data['global_args']['loglevel'] if 'loglevel' in yaml_data['global_args'] else 20
     setLogLevel(loglevel)
+    logging.info('Setting loglevel to {}'.format(loglevel))
 
     # import your strategy
     Strategy = importStrategy(yaml_data['strategy'])
