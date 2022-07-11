@@ -31,7 +31,7 @@ class TopkMom(Strategy):
         # set orders to self.orders
 
         if self.current_date in self.update_date:
-            self.update()       
+            self.update()    
             return
         if not self.last_weights is None and self.current_date in self.rebalance_date:
             self.rebalance()
@@ -42,11 +42,12 @@ class TopkMom(Strategy):
         self.weights[:] = 0.
         for group, args in self.topk_args.items():
             for asset in group_topk[group]:
-                self.weights[asset] = args[0] / args[1]
+                self.weights[asset] = args[0] / len(group_topk[group]) if len(group_topk[group]) else 0
         self.last_weights = self.weights[:]
 
     def rebalance(self):
-        self.weights = self.last_weights[:]
+        target_asset = list(set(self.on_sale_assets) & set(self.last_weights.index))
+        self.weights = self.last_weights.loc[target_asset]
         pass 
 
     def afterBacktest(self):
@@ -64,10 +65,13 @@ class TopkMom(Strategy):
         group_topk = {}
         for group, args in self.topk_args.items():
             topk = args[1]
-            assets = self.group_dict[group].getAllLeafAsset()
+            assets = [asset for asset in self.group_dict[group].getAllLeafAsset() if self.asset_ages[asset]>=self.historical_data]
             assert not (set(assets) & used_assets)
             used_assets.update(assets)
-            assert len(assets) >= topk
+
+            # if not enough, select all
+            if len(assets) <= topk:
+                group_topk[group] = assets
 
             yields = [self.indicator_calculator.lastNdaysReturn(self.user_close[asset], self.historical_data) for asset in assets]
             tmp = pd.Series(yields, index=assets)

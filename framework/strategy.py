@@ -70,6 +70,9 @@ class Strategy(ABC):
 
         self.order_manager = OrderManager()
 
+        # asset ages
+        self.asset_ages = {asset: -1 for asset in self.asset_list}
+
     def setResultPath(self):
         self.result_path = os.path.join(self.global_args['result_path'], self.strategy_name)
         if not os.path.isdir(self.result_path):
@@ -85,9 +88,9 @@ class Strategy(ABC):
         pass             
 
     def setBackTestAndRebalanceDate(self):
-        self.update_date = self.date_manager.getUpdateDateList(self.global_args['backtest_date_range'], frequency=self.global_args['frequency'], missing_date=self.missing_date)
+        self.update_date = self.date_manager.getUpdateDateList(self.global_args['backtest_date_range'], frequency=self.global_args['frequency'])
         if 'rebalance_frequency' in self.global_args:
-            self.rebalance_date = self.date_manager.getUpdateDateList(self.global_args['backtest_date_range'], frequency=self.global_args['rebalance_frequency'], missing_date=self.missing_date)
+            self.rebalance_date = self.date_manager.getUpdateDateList(self.global_args['backtest_date_range'], frequency=self.global_args['rebalance_frequency'])
         else:
             self.rebalance_date = []
 
@@ -100,74 +103,126 @@ class Strategy(ABC):
         self.asset_close_df = self.dataset.dict2CloseDf(self.raw_data)
         self.asset_daily_yield_df = self.asset_close_df / self.asset_close_df.shift()
 
-    def setPositionPreclose(self):
-        preclose = self.asset_close_df.loc[:self.backtest_date_list[0]].iloc[-1]
-        for k,v in self.asset_positions.items():
-            v.close = preclose[k]
-
     def beforeBacktest(self):
         self.setCloseAndYieldDf()
         self.setBackTestAndRebalanceDate()
-        self.setPositionPreclose()
 
-    def updatePositionBeforeOrder(self):
+    def getTotalAssetPosition(self):
+        return sum([v.position for v in self.asset_positions.values()])
+
+    def updateBeforeOrders(self):
         for k, v in self.asset_positions.items():
             v.setCurrentDate(self.current_date)
             v.setClose(self.asset_close_df.loc[self.current_date, k])
             v.updateBeforeOrders()
-        self.value = sum([v.position for v in self.asset_positions.values()]) + self.cash
-        # update nav
-        if self.shares and self.total_asset_position:
-            new_total_asset_position = sum([v.position for v in self.asset_positions.values()])
-            self.nav *= (new_total_asset_position / self.total_asset_position)
-            self.total_asset_position = new_total_asset_position
+        self.value = self.getTotalAssetPosition() + self.cash
 
-    def updatePositionAfterOrder(self):
+        # update weight
+        for k, v in self.asset_positions.items():
+            v.updateWeight(self.value)
+
+        # update nav
+        new_total_asset_position = self.getTotalAssetPosition()
+        if self.total_asset_position:
+            self.nav *= (new_total_asset_position / self.total_asset_position)
+        self.total_asset_position = new_total_asset_position
+        self.cash_brfore_order = self.cash
+
+        # update asset ages
+        for asset in self.asset_list:
+            self.asset_ages[asset] = self.dataset.asset_dict[asset].getAge(self.current_date)
+
+        self.on_sale_assets = [asset for asset in self.asset_list if self.dataset.asset_dict[asset].start_date <= self.current_date <= self.dataset.asset_dict[asset].stop_date]
+
+    def updateAfterOrders(self):
         # if cash very small, set to 0
-        if self.cash < 1e-3:
+        if abs(self.cash) < 1e-3:
             self.cash = 0
 
-        self.value = sum([v.position for v in self.asset_positions.values()]) + self.cash
-        # nav do not change
-        self.total_asset_position = sum([v.position for v in self.asset_positions.values()])
-        self.shares = self.total_asset_position / self.nav
+        new_total_asset_position = self.getTotalAssetPosition()
+        self.value = new_total_asset_position + self.cash
+        # update shares and nav 
+        if not new_total_asset_position:
+            self.shares = 0      
+        if self.total_asset_position == 0:
+            # nav donot change
+            self.shares = new_total_asset_position / self.nav
+        else:
+            # print(self.current_date, self.shares, self.cash, self.cash_brfore_order, self.total_asset_position)
+            self.shares *= (1 + (self.cash_brfore_order - self.cash) / self.total_asset_position)
+            self.nav = new_total_asset_position / self.shares if self.shares else self.nav
+        self.total_asset_position = new_total_asset_position
         
         self.historical_values.loc[self.current_date] = [self.value, self.shares, self.nav, self.total_asset_position, self.cash, self.cash/self.value]
 
-        self.weights = [self.asset_positions[asset].position/self.value for asset in self.asset_list]
-        self.historical_asset_weights.loc[self.current_date] = self.weights
-        self.historical_group_weights.loc[self.current_date] = [m.weight for m in self.group_positions.values()]
-
         # update position managers, check weight range
+        
         for k,v in self.asset_positions.items():
             v.updateAfterOrders(self.value)
-            # assert v.asset.weight_range[0] <= v.weight <= v.asset.weight_range[1], 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
+            if self.orders:
+                assert v.asset.weight_range[0] - 1e-3 <= v.weight <= v.asset.weight_range[1] + 1e-3, 'asset {} weight is {}, out of range {}'.format(k, v.weight, v.asset.weight_range)
         for k,v in self.group_positions.items():
             v.updateHistoricalData(date=self.current_date)
-            # assert v.group.weight_range[0] <= v.weight <= v.group.weight_range[1], 'group {} weight is {}, out of range {}'.format(k, v.weight, v.group.weight_range)
+            if self.orders:
+                assert v.group.weight_range[0] - 1e-3 <= v.weight <= v.group.weight_range[1] + 1e-3, 'group {} weight is {}, out of range {}'.format(k, v.weight, v.group.weight_range)
+
+        self.weights = [self.asset_positions[asset].position/self.value for asset in self.asset_list]
+        self.historical_asset_weights.loc[self.current_date] = self.weights
+        if self.group_list:
+            self.historical_group_weights.loc[self.current_date] = [m.weight for m in self.group_positions.values()]
         
 
     def prepareUserData(self):
         # we can't use data on current_date
-        self.user_close = self.asset_close_df.loc[:self.current_date].iloc[-self.global_args['buffer']-1: -1]
-        self.user_yield = self.asset_daily_yield_df.loc[:self.current_date].iloc[-self.global_args['buffer']-1: -1]
-        self.user_raw_data = {k: v.iloc[-self.global_args['buffer']-1: -1] for k, v in self.raw_data.items()}
+        self.user_close = self.asset_close_df.loc[:self.current_date, self.on_sale_assets].iloc[-self.global_args['buffer']-1: -1]
+        self.user_yield = self.asset_daily_yield_df.loc[:self.current_date, self.on_sale_assets].iloc[-self.global_args['buffer']-1: -1]
+        self.user_raw_data = {k: v.iloc[-self.global_args['buffer']-1: -1] for k, v in self.raw_data.items() if k in self.on_sale_assets}
+        self.user_asset_ages = {k:v for k,v in self.asset_ages.items() if k in self.on_sale_assets}
 
         self.orders = []
-        self.weights = pd.Series(index=self.asset_list)
+        self.weights = pd.Series(index=self.on_sale_assets)
         self.weights[:] = np.nan
 
     def weights2Orders(self):
         for asset in self.weights.dropna().index:
             if self.weights[asset]-self.asset_positions[asset].weight != 0:
-                self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*(self.weights[asset]) - self.asset_positions[asset].position, mark='weight_converted'))
+                self.orders.append(Order(date=self.current_date, asset_name=asset, money=self.value*self.weights[asset] - self.asset_positions[asset].position, mark='weight_converted'))
+
+    def clearStopAsset(self):
+        for asset in self.on_sale_assets:
+            if not self.dataset.asset_dict[asset].stop_date == self.current_date:
+                continue
+            if not self.asset_positions[asset].position:
+                continue
+            self.orders.append(Order(date=self.current_date, asset_name=asset, money=-self.asset_positions[asset].position, mark='clear_all'))
+
+    def groupOrder(self):
+        order_dict = {}
+        for order in self.orders:
+            if order.mark == 'clear_all' or order.asset_name not in order_dict:
+                order_dict[order.asset_name] = order
+            elif order_dict[order.asset_name].mark != 'clear_all':
+                order_dict[order.asset_name].money += order.money
+        self.orders = list(order_dict.values())
 
     def executeOrders(self):
         self.weights2Orders()
+        self.clearStopAsset()
+        self.groupOrder()
+        # sell first, then buy
+        self.orders.sort(key=lambda x: x.money)
         for order in self.orders:
+            if order.asset_name not in self.on_sale_assets:
+                logging.error('{}-Trying to operate not on-sale asset: {}'.format(self.current_date, order.asset_name))
+                continue
+            if order.money > self.cash:
+                order.money = self.cash
+            # print(self.current_date, 'before', sum([v.position for v in self.asset_positions.values()]) + self.cash, self.cash)
             cost = self.asset_positions[order.asset_name].executeOrder(order, self.dataset.asset_dict[order.asset_name].transection_cost)
             self.cash -= cost
+            # print(self.current_date, 'after', sum([v.position for v in self.asset_positions.values()]) + self.cash, self.cash)
             self.order_manager.addOrder(order)
+                
 
     def saveResults(self):
         self.asset_close_df = self.asset_close_df.loc[self.backtest_date_list]
@@ -203,14 +258,14 @@ class Strategy(ABC):
                       unit='days'):
             self.current_date = self.backtest_date_list[i]
             # update nav
-            self.updatePositionBeforeOrder()
+            self.updateBeforeOrders()
 
-            if self.current_date in self.missing_date:
-                return
+            # do backtest
             self.prepareUserData()
             self.backtestOneDay()
             self.executeOrders()
-            self.updatePositionAfterOrder()
+
+            self.updateAfterOrders()
 
         self.saveResults()
         self.afterBacktest()

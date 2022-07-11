@@ -7,6 +7,7 @@
 
 import os, sys, argparse, logging
 import pandas as pd
+import numpy as np
 
 import matplotlib
 matplotlib.use('Agg')
@@ -14,7 +15,10 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
-plt.set_loglevel("info") 
+try:
+    plt.set_loglevel("info") 
+except Exception as e:
+    print(e)
 
 def drawWeights(weights, marked_date, fig_name):
     # draw weights
@@ -57,12 +61,6 @@ def drawValuesHtml(values, fig_name, asset_close_df=None, benchmark=None, init_v
 
     values = init_value * (values / values.iloc[0])
     values = values.round(decimals=5)
-    if not benchmark is None:
-        benchmark = init_value * (benchmark / benchmark.iloc[0])
-        benchmark = benchmark.round(decimals=5)
-    if not asset_close_df is None:
-        asset_close_df = init_value * (asset_close_df / asset_close_df.iloc[0])
-        asset_close_df = asset_close_df.round(decimals=5)
 
     Line = Line(opts.InitOpts(
         width='1000px', 
@@ -71,18 +69,21 @@ def drawValuesHtml(values, fig_name, asset_close_df=None, benchmark=None, init_v
     Line.add_xaxis([x.strftime('%Y-%m-%d') for x in list(values.index)])
 
     for c in values.columns:
-        Line.add_yaxis(c, list(values[c]), is_smooth=True, z_level=100, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
+        Line.add_yaxis(c, replaceNan(values[c]), is_smooth=True, z_level=100, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
             width=3, 
         ))
-    for c in benchmark.columns:
-        Line.add_yaxis(c, list(benchmark[c]), is_smooth=True, z_level=10, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
-            type_='-',   
-            width=2,
-        ))
-    for c in asset_close_df.columns:
-        Line.add_yaxis(c, list(asset_close_df[c]), is_smooth=True, z_level=1, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
-            opacity=0.6, 
-        ), )
+    if not benchmark is None:
+        for c in benchmark.columns:
+            Line.add_yaxis(c, replaceNan(benchmark[c]), is_smooth=True, z_level=10, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
+                type_='-',   
+                width=2,
+            ))
+
+    if not asset_close_df is None:
+        for c in asset_close_df.columns:  
+            Line.add_yaxis(c, replaceNan(asset_close_df[c]), is_smooth=True, z_level=1, symbol_size=2, linestyle_opts=opts.LineStyleOpts(
+                opacity=0.6, 
+            ), )
 
     Line.set_global_opts(xaxis_opts=opts.AxisOpts(
         type_='time', 
@@ -118,3 +119,11 @@ def drawValues(values, fig_name, asset_close_df=None, benchmark=None, init_value
         drawValuesHtml(values, fig_name, asset_close_df=asset_close_df, benchmark=benchmark, init_value=init_value)
 
 
+def replaceNan(s):
+    tmp = s
+    if tmp.dropna().shape[0] == 0:
+        return [None for x in tmp.values]
+    first_value = tmp.dropna().iloc[0]
+    tmp /= first_value
+    tmp = tmp.round(decimals=5)
+    return [x if not np.isnan(x) else None for x in tmp.values]

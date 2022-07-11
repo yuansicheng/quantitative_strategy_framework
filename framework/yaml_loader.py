@@ -21,7 +21,8 @@ class YamlLoader():
 
     def checkYaml(self, yaml_data):
         for key in ['constants', 'global_args', 'strategy', 'strategy_args', 'dataset', 'benchmark']:
-            assert key in yaml_data, '{} must be set in yaml'
+            assert key in yaml_data, '{} must be set in yaml'.format(key)
+
 
     def loadYaml(self, yaml_file):
         assert os.path.isfile(yaml_file), 'yaml_file {} do not exists'.format(yaml_file)

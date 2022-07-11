@@ -20,7 +20,7 @@ global_args:
   # each strategy will create a folder in this path
   result_path: result/topk_mom
   transection_date_file: framework/transection_date.csv
-  backtest_date_range: [[2015, 1, 1], [2015, 12, 31]]
+  backtest_date_range: [[2016, 1, 1], [2021, 12, 31]]
   frequency: monthly
   rebalance_frequency: weekly
   buffer: *DAY_OF_YEAR
@@ -46,9 +46,9 @@ strategy:
 strategy_args:
   historical_data: year
   topk_args: 
-      # group: [weight, topk]
-    bonds: [0.5, 1]
-    stocks: [0.5, 2]
+    # group: [weight, topk]
+    bonds: [0.8, 3]
+    stocks: [0.2, 3]
 
 
 ###################################################
@@ -75,18 +75,14 @@ dataset:
         - group_name: bonds
           <<: *group_default
           asset:
-            - asset_file: data/中债-国债总财富(总值)指数.csv
-              <<: *asset_default
-            - asset_file: data/中债-信用债总财富(总值)指数.csv
+            - asset_file: strategy/topk_mom/data_selected/bonds/*
+              type: fuzzy
               <<: *asset_default
         - group_name: stocks
           <<: *group_default
           asset:
-            - asset_file: data/沪深300指数(全收益).csv
-              <<: *asset_default
-            - asset_file: data/上证50(全收益).csv
-              <<: *asset_default
-            - asset_file: data/创业板指(全收益).csv
+            - asset_file: strategy/topk_mom/data_selected/stocks/*
+              type: fuzzy
               <<: *asset_default
 
 ###################################################
@@ -94,16 +90,16 @@ dataset:
 # set benchmark
 ###################################################
 benchmark:
-  - name: 0.8x国债+0.2x沪深300
-    asset:
-      - asset_file: data/中债-国债总财富(总值)指数.csv
-        weight: 0.8
-      - asset_file: data/沪深300指数(全收益).csv
-        weight: 0.2
-  - name: 0.9x国债+0.1x沪深300
-    asset:
-      - asset_file: data/中债-国债总财富(总值)指数.csv
-        weight: 0.9
-      - asset_file: data/沪深300指数(全收益).csv
-        weight: 0.1
+  # - name: 0.8x国债+0.2x沪深300
+  #   asset:
+  #     - asset_file: data/中债-国债总财富(总值)指数.csv
+  #       weight: 0.8
+  #     - asset_file: data/沪深300指数(全收益).csv
+  #       weight: 0.2
+  # - name: 0.9x国债+0.1x沪深300
+  #   asset:
+  #     - asset_file: data/中债-国债总财富(总值)指数.csv
+  #       weight: 0.9
+  #     - asset_file: data/沪深300指数(全收益).csv
+  #       weight: 0.1
   

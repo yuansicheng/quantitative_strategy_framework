@@ -27,11 +27,9 @@ class DateManager():
         assert before_shape >= buffer, 'Do not have enough date for buffer'
         return self.all_date.loc[:date_range[1]].iloc[before_shape-buffer:].index
 
-    def getUpdateDateList(self, date_range, frequency=1, missing_date=None):
+    def getUpdateDateList(self, date_range, frequency=1):
         assert isinstance(frequency, int) or frequency in ['weekly', 'monthly', 'quarterly'], 'frequency must be int type or [\'weekly\', \'monthly\', \'quarterly\']'
         date_list = self.getDateList(date_range)
-        if missing_date:
-            date_list = [d for d in date_list if d not in missing_date]
         if isinstance(frequency, int):
             return [date_list[i] for i in range(len(date_list)) if i % frequency==0]
         tmp = pd.DataFrame()
@@ -39,13 +37,13 @@ class DateManager():
         tmp['year'] = [d.year for d in date_list]
         if frequency == 'weekly':
             tmp['week_of_year'] = [d.weekofyear for d in date_list]
-            return tmp.groupby(['year', 'week_of_year']).first()['date'].values
+            return list(tmp.groupby(['year', 'week_of_year']).first()['date'])
         if frequency == 'monthly':
             tmp['month'] = [d.month for d in date_list]
-            return tmp.groupby(['year', 'month']).first()['date'].values
+            return list(tmp.groupby(['year', 'month']).first()['date'])
         if frequency == 'quarterly':
             tmp['quarter'] = [(d.month-1)//3 for d in date_list]
-            return tmp.groupby(['year', 'quarter']).first()['date'].values
+            return list(tmp.groupby(['year', 'quarter']).first()['date'].values)
 
     
 

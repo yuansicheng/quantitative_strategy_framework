@@ -45,7 +45,7 @@ class Dataset():
         self.group = Group(name='root')
 
     def getAssetName(self, asset_file):
-        return os.path.basename(asset_file).split('.')[0]
+        return '.'.join(os.path.basename(asset_file).split('.')[:-1])
 
     def addGroup(self, group='', weight_range=[0., 1.], transection_cost=0.,):
         group_split = group.split('/')
@@ -85,7 +85,6 @@ class Dataset():
 
 
     def addAsset(self, asset_file, transection_cost=0., group='', weight_range=[0., 1.]):
-        assert os.path.exists(asset_file), 'asset_file {} do not exists'.format(asset_file)
 
         asset_name = self.getAssetName(asset_file)
         if asset_name in list(self.asset_dict.keys()):
@@ -107,12 +106,12 @@ class Dataset():
 
     def getData(self, date_list):
         raw_data = self.asset_dict.copy()
-        missing_date = set()
+        missing_date = {}
         for asset_name, asset in self.asset_dict.items():
             # raw_data and missing_date -> rd and md
             rd, md = asset.getData(date_list)
             raw_data[asset_name] = rd
-            missing_date.update(md)
+            missing_date[asset_name] = md
         return raw_data, missing_date
 
     def dict2CloseDf(self, data_dict):

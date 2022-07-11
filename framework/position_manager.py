@@ -8,71 +8,74 @@
 import os, sys, argparse, logging
 
 import pandas as pd
+import numpy as np
 
 class AssetPositionManager():
     def __init__(self, asset) -> None:
         self.asset = asset
         self.asset_name = asset.asset_name
 
+        self.columns = ['weight', 'position', 'close', 'daily_return', 'total_investment', 'cost_price', 'current_yield', 'current_return', 'historical_return', 'total_return', 'number_of_position', 'total_transection_cost', ]
+        for c in self.columns:
+            setattr(self, c, 0)
         self.current_date = None
-        self.weight = 0.
-        self.position = 0.
-        self.close = None
-        self.daily_return = None
-        self.total_investment = 0.
-        self.cost_price = 0.
-        self.total_yield = 0.
-        self.total_return = 0.
-        self.number_of_position = 0.
-        self.total_transection_cost = 0.
+        self.close = np.nan
 
-        self.historical_data = pd.DataFrame(columns=['weight', 'position', 'close', 'daily_return', 'total_investment', 'cost_price', 'total_yield', 'total_return', 'number_of_position', 'total_transection_cost', ])
+        self.historical_data = pd.DataFrame(columns=self.columns)
 
     def setCurrentDate(self, date):
         self.current_date = date
 
     def updateHistoricalData(self, ):
         assert self.current_date not in self.historical_data.index
-        self.historical_data.loc[self.current_date] = [self.weight, self.position, self.close, self.daily_return, self.total_investment, self.cost_price, self.total_yield, self.total_return, self.number_of_position, self.total_transection_cost]
+        self.historical_data.loc[self.current_date] = [getattr(self, c) for c in self.columns]
 
     def setClose(self, close):
-        assert close
-        self.daily_return = close / self.close
+        if (not np.isnan(close)) and (not np.isnan(self.close)):
+            self.daily_return = close / self.close if self.close else 0.
         self.close = close
-        
 
     def executeOrder(self, order, transection_cost):
         assert self.asset_name == order.asset_name
         cost = abs(order.money) * transection_cost
+
+        if -order.money > self.position - cost:
+            return self.clearAll(transection_cost)
+       
         self.total_transection_cost += cost
-        self.position += (order.money - cost)
-        self.number_of_position += (order.money-cost) / self.close
-
-        if self.position <= 0:
-            self.clearAll()
-            return self.position - cost
-
+        
+            
         if order.money >= 0:
             self.total_investment += order.money
+            self.position += (order.money - cost)
+            self.number_of_position += (order.money-cost) / self.close
         else:
             self.total_investment *= (1 + order.money/self.position)
+            self.position += order.money
+            self.number_of_position += order.money / self.close
+            self.historical_return += -order.money * self.current_yield
         return order.money
 
-    def clearAll(self):
+    def clearAll(self, transection_cost):
+        return_money = -self.position + self.position * transection_cost
         self.position = 0.
         self.total_investment = 0.
         self.number_of_position = 0.
-
+        return return_money
         
 
     def updateBeforeOrders(self):
         self.position *= self.daily_return
 
+    def updateWeight(self, stragy_value):
+        self.weight = self.position / stragy_value if stragy_value else 0.
+
     def updateAfterOrders(self, stragy_value):
-        self.total_return = self.position - self.total_investment
-        self.total_yield = self.total_return / self.total_investment if self.total_investment != 0 else 0.
-        self.weight = self.position / stragy_value if stragy_value != 0 else 0.
-        self.cost_price = self.position / self.number_of_position if self.number_of_position != 0 else 0.
+        self.current_return = self.position - self.total_investment
+        self.current_yield = self.current_return / self.total_investment if self.total_investment else 0.
+        self.total_return = self.historical_return + self.current_return
+        self.updateWeight(stragy_value)
+        self.cost_price = self.total_investment / self.number_of_position if self.number_of_position else 0.
 
         self.updateHistoricalData()
 
@@ -93,10 +96,8 @@ class GroupPositionManager():
                 continue
             setattr(self, key, sum([getattr(m, key) for m in self.positon_managers]))
             self.historical_data.loc[date, key] = getattr(self, key)
-        self.historical_data.loc[date, 'total_yield'] = self.historical_data.loc[date, 'total_return'] / self.historical_data.loc[date, 'total_investment'] if self.historical_data.loc[date, 'total_investment'] != 0 else 0.
-        
-        for key in self.columns:
-            setattr(self, key, self.historical_data.loc[date, key])
+        self.historical_data.loc[date, 'total_yield'] = self.total_return / self.total_investment if self.total_investment  else 0.
+        self.total_yield = self.historical_data.loc[date, 'total_yield']
 
 
         

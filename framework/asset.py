@@ -13,17 +13,33 @@ import numpy as np
 class Asset():
     def __init__(self, asset_name, asset_file, transection_cost=0., weight_range=[0., 1.]) -> None:
         self.asset_name = asset_name
+        assert os.path.isfile(asset_file), 'asset_file {} do not exists'.format(asset_file)
         self.asset_file = asset_file
         self.transection_cost = transection_cost
 
         assert len(weight_range) == 2, 'len(weight_range) must be 2'
         self.weight_range = weight_range
 
+        # 20220520 update
+        self.setStartAndStopDate()
+
+    def setStartAndStopDate(self):
+        df = self.loadAllData()
+        close_label = self.findLabel(df.columns, ['CLOSE', '收盘价'])
+        index = df[close_label].dropna().index
+        assert index.shape[0], '{} raw data is empty'.format(self.asset_name)
+        self.start_date, self.stop_date = index[0], index[-1]
+        # df will not use again
+        del df
+
+    def getAge(self, date):
+        return (date - self.start_date).days
+
     def loadAllData(self):
         if self.asset_file.endswith('.csv'):
-            df = pd.read_csv(self.asset_file, encoding='utf-8-sig')
+            df = pd.read_csv(self.asset_file, encoding='utf-8-sig', engine='python')
         elif self.asset_file.endswith('.xls') or self.asset_file.endswith('.xlsx'):
-            df = pd.read_excel(self.asset_file)
+            df = pd.read_excel(self.asset_file, engine='python')
         date_label = self.findLabel(df.columns, ['date', '日期'])
         df.index = pd.to_datetime(df[date_label])
         df.drop(columns=[date_label])
@@ -40,7 +56,6 @@ class Asset():
 
     def getData(self, date_list):
         all_data = self.loadAllData()
-        assert date_list[-1] < all_data.index[-1], 'date_list[-1] < all_data.index[-1]'
         df = pd.DataFrame(index=date_list, columns=all_data.columns)
         df.iloc[:,:] = np.nan
         exist_date_list = [d for d in all_data.index if d in date_list]
@@ -48,7 +63,6 @@ class Asset():
         # if miss the first value, then break
         close_label = self.findLabel(df.columns, ['CLOSE', '收盘价'])
         df['CLOSE'] = df[close_label]
-        assert not np.isnan(df['CLOSE'].iloc[0]), 'First close data must not be empty'
         missing_date = set(df[df['CLOSE'].isnull().values==True].index)
         df.fillna(method='ffill', inplace=True)
 

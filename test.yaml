@@ -18,9 +18,9 @@ global_args:
   # 10-DEBUG, 20-INFO, 30-WARNING, 40-ERROR, 50-CRITICAL
   loglevel: 10
   # each strategy will create a folder in this path
-  result_path: result/rp
+  result_path: result/test
   transection_date_file: framework/transection_date.csv
-  backtest_date_range: [[2010, 1, 1], [2010, 12, 31]]
+  backtest_date_range: [[2010, 1, 1], [2011, 12, 31]]
   frequency: monthly
   rebalance_frequency: weekly
   buffer: *DAY_OF_YEAR
@@ -33,9 +33,9 @@ global_args:
 ###################################################
 strategy:
   # strategy_file must be relative path
-  strategy_file: strategy.rp.rp_strategy
+  strategy_file: strategy.examples.simple_rp.simple_rp_strategy
   # class name in strategy_file
-  strategy_name: RP
+  strategy_name: SimpleRP
 
 ###################################################
 ###################################################
@@ -80,6 +80,8 @@ dataset:
             - asset_file: data/沪深300指数(全收益).csv
               <<: *asset_default
             - asset_file: data/上证50(全收益).csv
+              <<: *asset_default
+            - asset_file: data/创业板指(全收益).csv
               <<: *asset_default
       asset:
         - asset_file: data/*黄金*

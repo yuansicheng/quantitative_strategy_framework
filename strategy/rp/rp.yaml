@@ -1,0 +1,105 @@
+###################################################
+###################################################
+# constants
+###################################################
+constants:
+  DAY_OF_YEAR: &DAY_OF_YEAR 252
+  DAY_OF_MONTH: &DAY_OF_MONTH 22
+  DAY_OF_WEEK: &DAY_OF_WEEK 5
+  WEEK_OF_YEAR: &WEEK_OF_YEAR 52
+  # risk free rate
+  RFR: &RFR 0.015
+
+###################################################
+###################################################
+# global args, are required for all strategies
+###################################################
+global_args:
+  # 10-DEBUG, 20-INFO, 30-WARNING, 40-ERROR, 50-CRITICAL
+  loglevel: 10
+  # each strategy will create a folder in this path
+  result_path: result/rp
+  transection_date_file: framework/transection_date.csv
+  backtest_date_range: [[2010, 1, 1], [2020, 12, 31]]
+  frequency: monthly
+  rebalance_frequency: weekly
+  buffer: *DAY_OF_YEAR
+  cash: 10000
+  fig_type: html
+
+###################################################
+###################################################
+# specify which strategy you want to use, split with '.'
+###################################################
+strategy:
+  # strategy_file must be relative path
+  strategy_file: strategy.rp.rp_strategy
+  # class name in strategy_file
+  strategy_name: RP
+
+###################################################
+###################################################
+# strategy args, each arg can be specified as dict or list,
+# then be parsed as a matrix, each group of args will create a thread
+# note: strategy name and result folder for this strategy will be created autometicly
+###################################################
+strategy_args:
+
+
+###################################################
+###################################################
+# set dataset
+###################################################
+group_default: &group_default
+  group_name: ''
+  transection_cost: 0.0002
+  weight_range: [0., 1.]
+
+asset_default: &asset_default
+  asset_name: ''
+  asset_file: ''
+  type: precision
+  transection_cost: 0.0002
+  weight_range: [0., 1.]
+
+dataset:
+  group:
+    - group_name: root
+      <<: *group_default
+      group:
+        - group_name: bonds
+          weight_range: [0.4, 0.8]
+          <<: *group_default
+          asset:
+            - asset_file: data/中债-国债总财富(总值)指数.csv
+              weight_range: [0.2, 0.8]
+              <<: *asset_default
+            - asset_file: data/中债-信用债总财富(总值)指数.csv
+              weight_range: [0.2, 0.8]
+              <<: *asset_default
+        - group_name: stocks
+          weight_range: [0., 0.3]
+          <<: *group_default
+          asset:
+            - asset_file: data/沪深300指数(全收益).csv
+              weight_range: [0., 0.3]
+              <<: *asset_default
+            - asset_file: data/上证50(全收益).csv
+              weight_range: [0., 0.3]
+              <<: *asset_default
+            - asset_file: data/创业板指(全收益).csv
+              weight_range: [0., 0.3]
+              <<: *asset_default
+      asset:
+        - asset_file: data/*黄金*
+          weight_range: [0., 0.1]
+          type: fuzzy
+          <<: *asset_default
+
+###################################################
+###################################################
+# set benchmark
+###################################################
+benchmark:
+
+  
