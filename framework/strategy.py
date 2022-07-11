@@ -145,12 +145,20 @@ class Strategy(ABC):
         if not new_total_asset_position:
             self.shares = 0      
         if self.total_asset_position == 0:
+<<<<<<< HEAD
             # nav donot change
             self.shares = new_total_asset_position / self.nav
         else:
             # print(self.current_date, self.shares, self.cash, self.cash_brfore_order, self.total_asset_position)
             self.shares *= (1 + (self.cash_brfore_order - self.cash) / self.total_asset_position)
             self.nav = new_total_asset_position / self.shares if self.shares else self.nav
+=======
+            self.shares = new_total_asset_position
+        else:
+            # print(self.current_date, self.shares, self.cash, self.cash_brfore_order, self.total_asset_position)
+            self.shares *= (1 + (self.cash_brfore_order - self.cash) / self.total_asset_position)
+        self.nav = new_total_asset_position / self.shares if self.shares else self.nav
+>>>>>>> 73777c618e1822278cd695a6e38e1b3b5405374b
         self.total_asset_position = new_total_asset_position
         
         self.historical_values.loc[self.current_date] = [self.value, self.shares, self.nav, self.total_asset_position, self.cash, self.cash/self.value]
@@ -168,8 +176,12 @@ class Strategy(ABC):
 
         self.weights = [self.asset_positions[asset].position/self.value for asset in self.asset_list]
         self.historical_asset_weights.loc[self.current_date] = self.weights
+<<<<<<< HEAD
         if self.group_list:
             self.historical_group_weights.loc[self.current_date] = [m.weight for m in self.group_positions.values()]
+=======
+        self.historical_group_weights.loc[self.current_date] = [m.weight for m in self.group_positions.values()]
+>>>>>>> 73777c618e1822278cd695a6e38e1b3b5405374b
         
 
     def prepareUserData(self):
