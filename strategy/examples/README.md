@@ -15,3 +15,8 @@ simple_fixed_investment，使用订单的方式执行策略。当持有现金不
 - sell_proportion：止盈时卖出比例；
 
 python run.py -y strategy/examples/simple_fixed_investment/simple_fixed_investment.yaml
+
+## 简单金叉死叉策略
+simple_macd，只有一个资产，当ma5上穿ma20时，权重置1，下穿时置0。
+
+python run.py -y strategy/examples/simple_macd/simple_macd.yaml
